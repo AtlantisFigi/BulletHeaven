@@ -1,0 +1,70 @@
+# ==========================================
+# Docs
+# ==========================================
+[Dd]ocs/
+
+# ==========================================
+# .NET / C# Build Outputs
+# ==========================================
+[Bb]in/
+[Oo]bj/
+[Aa]rms/
+[Aa]rm64/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]ssets/[Bb]in/
+publish/
+
+# ==========================================
+# Visual Studio / Visual Studio Code / JetBrains
+# ==========================================
+.vs/
+.vscode/
+.idea/
+*.DotSettings.user
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# ==========================================
+# Raylib / Native Binaries & Cache
+# ==========================================
+# Native runtime DLLs when placed manually in root
+*.dll
+*.dylib
+*.so
+# Allow project-referenced managed libraries if needed
+!packages/**/*.dll
+
+# ==========================================
+# NuGet & Packages
+# ==========================================
+*.nupkg
+*.snupkg
+packages/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ==========================================
+# Profiling & Diagnostics
+# ==========================================
+*.log
+*.trc
+*.dmp
+BenchmarkDotNet.Artifacts/
+
+# ==========================================
+# OS Generated Files
+# ==========================================
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+.DS_Store
+

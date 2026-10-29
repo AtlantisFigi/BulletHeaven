@@ -23,7 +23,6 @@ public sealed class MovementSystem : ISystem
     {
         if (_world == null || _positions == null || _velocities == null) return;
 
-        // Itereer door alle entiteiten die zowel Position als Velocity bezitten
         foreach (Entity e in _world.Query().With<PositionComponent>().With<VelocityComponent>())
         {
             ref PositionComponent pos = ref _positions.Get(e);
@@ -32,7 +31,6 @@ public sealed class MovementSystem : ISystem
             pos.X += vel.X * deltaTime;
             pos.Y += vel.Y * deltaTime;
 
-            // Screen wrap binnen schermgrenzen (1280 x 720)
             if (pos.X < 0) pos.X += 1280;
             else if (pos.X > 1280) pos.X -= 1280;
             if (pos.Y < 0) pos.Y += 720;

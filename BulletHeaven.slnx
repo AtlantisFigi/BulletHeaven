@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="BulletHeaven.ECS/BulletHeaven.ECS.csproj" />
+  <Project Path="BulletHeaven.Game/BulletHeaven.Game.csproj" />
 </Solution>

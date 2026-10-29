@@ -56,4 +56,3 @@ public sealed class SwarmAISystem : ISystem
         }
     }
 }
-

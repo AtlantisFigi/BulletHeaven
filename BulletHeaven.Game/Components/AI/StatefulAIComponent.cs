@@ -8,34 +8,42 @@ public enum EnemyState : byte
     Cooldown = 3
 }
 
-public struct StatefulAIComponent
+public enum StatefulArchetype : byte
 {
-    public EnemyState State;
-    public float StateTimer;
-    public float TelegraphDuration;
-    public float ChargeDuration;
-    public float CooldownDuration;
-    public float NormalSpeed;
-    public float ChargeSpeed;
-    public float ChargeDirX;
-    public float ChargeDirY;
-
-    public StatefulAIComponent(
-        float normalSpeed = 60f,
-        float chargeSpeed = 220f,
-        float telegraphDuration = 0.5f,
-        float chargeDuration = 0.8f,
-        float cooldownDuration = 0.6f)
-    {
-        State = EnemyState.Idle;
-        StateTimer = 1.0f; // start na 1 sec met telegraph
-        NormalSpeed = normalSpeed;
-        ChargeSpeed = chargeSpeed;
-        TelegraphDuration = telegraphDuration;
-        ChargeDuration = chargeDuration;
-        CooldownDuration = cooldownDuration;
-        ChargeDirX = 0f;
-        ChargeDirY = 0f;
-    }
+    Charger = 0,
+    Spitter = 1,
+    Summoner = 2
 }
 
+public struct StatefulAIComponent
+{
+    public StatefulArchetype Archetype;
+    public EnemyState State;
+    public float StateTimer;
+    public float ActionTimer;
+    public float ActionInterval;
+    public float NormalSpeed;
+    public float SpecialSpeed;
+    public float DirX;
+    public float DirY;
+    public float PreferredDistance;
+
+    public StatefulAIComponent(
+        StatefulArchetype archetype,
+        float normalSpeed = 60f,
+        float specialSpeed = 220f,
+        float actionInterval = 2.0f,
+        float preferredDistance = 300f)
+    {
+        Archetype = archetype;
+        State = EnemyState.Idle;
+        StateTimer = 1.0f;
+        ActionInterval = actionInterval;
+        ActionTimer = actionInterval;
+        NormalSpeed = normalSpeed;
+        SpecialSpeed = specialSpeed;
+        PreferredDistance = preferredDistance;
+        DirX = 0f;
+        DirY = 0f;
+    }
+}

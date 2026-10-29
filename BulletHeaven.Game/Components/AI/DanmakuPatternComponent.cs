@@ -15,4 +15,3 @@ public struct DanmakuPatternComponent
         Acceleration = acceleration;
     }
 }
-

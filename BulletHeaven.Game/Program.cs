@@ -1,6 +1,7 @@
 using BulletHeaven.ECS;
 using BulletHeaven.ECS.Core;
 using BulletHeaven.ECS.Systems;
+using BulletHeaven.Game.Benchmarking;
 using BulletHeaven.Game.Scenarios;
 using BulletHeaven.Game.Systems;
 using BulletHeaven.Game.Systems.AI;
@@ -14,11 +15,19 @@ public static class Program
     private const int ScreenHeight = 720;
 
     private static readonly int[] EntityCounts = { 1000, 5000, 10000, 25000 };
-    private static int _currentCountIndex = 0; // Standaard 1.000
+    private static int _currentCountIndex = 0;
     private static ScenarioType _currentScenario = ScenarioType.Swarm;
 
     public static void Main(string[] args)
     {
+        if (args.Contains("--benchmark"))
+        {
+            string csvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "Docs", "benchmarks", "benchmark_results.csv");
+            csvPath = Path.GetFullPath(csvPath);
+            BenchmarkRunner.RunSuite(csvPath, durationPerRun: 4f);
+            return;
+        }
+
         bool autoExit = args.Contains("--test");
         int frameCounter = 0;
 
@@ -37,20 +46,24 @@ public static class Program
 
         Raylib.SetConfigFlags(ConfigFlags.Msaa4xHint | ConfigFlags.ResizableWindow);
         Raylib.InitWindow(ScreenWidth, ScreenHeight, "Bullet Heaven - ECS Scenarios (Deelvraag 2)");
-        Raylib.SetTargetFPS(0); // Ongecapte framerate om pure performance te kunnen zien!
+        Raylib.SetTargetFPS(0);
 
         var world = new World();
         var cmd = new CommandBuffer();
         var scheduler = new SystemScheduler();
 
         var swarmSystem = new SwarmAISystem();
-        var statefulSystem = new StatefulAISystem();
-        var danmakuSystem = new DanmakuSystem();
+        var monolithSystem = new StatefulAISystem(cmd);
+        var chargerSystem = new ChargerSystem();
+        var spitterSystem = new SpitterSystem(cmd);
+        var summonerSystem = new SummonerSystem(cmd);
         var movementSystem = new MovementSystem();
 
         scheduler.Register(swarmSystem)
-                 .Register(statefulSystem)
-                 .Register(danmakuSystem)
+                 .Register(monolithSystem)
+                 .Register(chargerSystem)
+                 .Register(spitterSystem)
+                 .Register(summonerSystem)
                  .Register(movementSystem);
 
         scheduler.Initialize(world);
@@ -98,12 +111,12 @@ public static class Program
         }
         else if (Raylib.IsKeyPressed(KeyboardKey.Two))
         {
-            _currentScenario = ScenarioType.Stateful;
+            _currentScenario = ScenarioType.StatefulMonolith;
             reload = true;
         }
         else if (Raylib.IsKeyPressed(KeyboardKey.Three))
         {
-            _currentScenario = ScenarioType.Danmaku;
+            _currentScenario = ScenarioType.StatefulSegregated;
             reload = true;
         }
 
@@ -129,6 +142,13 @@ public static class Program
             renderSystem.Headless = !renderSystem.Headless;
         }
 
+        if (Raylib.IsKeyPressed(KeyboardKey.B))
+        {
+            string csvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "Docs", "benchmarks", "benchmark_results.csv");
+            csvPath = Path.GetFullPath(csvPath);
+            BenchmarkRunner.RunSuite(csvPath, durationPerRun: 4f);
+        }
+
         if (reload)
         {
             LoadCurrentScenario(world);
@@ -143,11 +163,11 @@ public static class Program
             case ScenarioType.Swarm:
                 ScenarioSpawner.SpawnSwarm(world, count, ScreenWidth, ScreenHeight);
                 break;
-            case ScenarioType.Stateful:
-                ScenarioSpawner.SpawnStateful(world, count, ScreenWidth, ScreenHeight);
+            case ScenarioType.StatefulMonolith:
+                ScenarioSpawner.SpawnStatefulMonolith(world, count, ScreenWidth, ScreenHeight);
                 break;
-            case ScenarioType.Danmaku:
-                ScenarioSpawner.SpawnDanmaku(world, count, ScreenWidth, ScreenHeight);
+            case ScenarioType.StatefulSegregated:
+                ScenarioSpawner.SpawnStatefulSegregated(world, count, ScreenWidth, ScreenHeight);
                 break;
         }
     }
@@ -157,14 +177,14 @@ public static class Program
         int fps = Raylib.GetFPS();
         float ms = deltaTime * 1000f;
 
-        Raylib.DrawRectangle(5, 5, 450, 130, new Color(0, 0, 0, 180));
-        Raylib.DrawRectangleLines(5, 5, 450, 130, new Color(70, 70, 90, 255));
+        Raylib.DrawRectangle(5, 5, 490, 135, new Color(0, 0, 0, 190));
+        Raylib.DrawRectangleLines(5, 5, 490, 135, new Color(70, 70, 90, 255));
 
         string scenarioName = _currentScenario switch
         {
             ScenarioType.Swarm => "Scenario A: Swarm AI (Vampire Survivors)",
-            ScenarioType.Stateful => "Scenario B: Stateful AI (Brotato)",
-            ScenarioType.Danmaku => "Scenario C: Danmaku Patterns (Touhou)",
+            ScenarioType.StatefulMonolith => "Scenario B: Monolith FSM (Fat Component + Switch)",
+            ScenarioType.StatefulSegregated => "Scenario C: Segregated ECS (Dedicated Components)",
             _ => "Onbekend"
         };
 
@@ -175,6 +195,7 @@ public static class Program
         Raylib.DrawText($"FPS: {fps} ({ms:F1} ms/frame)", 15, 58, 17, fpsColor);
         Raylib.DrawText($"Rendering: {(renderSystem.Headless ? "UIT (Headless)" : "AAN (GPU Active)")}", 15, 80, 15, renderSystem.Headless ? Color.Orange : Color.Lime);
 
-        Raylib.DrawText("[1] Swarm  [2] Stateful  [3] Danmaku  |  [UP/DOWN] Schaal  [H] Headless", 15, 105, 12, Color.LightGray);
+        Raylib.DrawText("[1] Swarm  [2] Monolith (Switch)  [3] Segregated (Pure ECS)", 15, 103, 12, Color.LightGray);
+        Raylib.DrawText("[UP/DOWN] Schaal  |  [H] Headless  |  [B] Run Benchmark Suite", 15, 118, 12, Color.Yellow);
     }
 }

@@ -9,4 +9,3 @@ public struct SwarmAIComponent
         Speed = speed;
     }
 }
-

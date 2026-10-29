@@ -14,9 +14,17 @@ public sealed class StatefulAISystem : ISystem
     private ComponentStore<VelocityComponent>? _velocities;
     private ComponentStore<StatefulAIComponent>? _statefuls;
     private ComponentStore<RenderColorComponent>? _colors;
+    private readonly CommandBuffer _cmd;
 
     public float TargetX { get; set; } = 640f;
     public float TargetY { get; set; } = 360f;
+    public int MaxExtraSpawns { get; set; } = 500;
+    private int _extraSpawns = 0;
+
+    public StatefulAISystem(CommandBuffer cmd)
+    {
+        _cmd = cmd;
+    }
 
     public void Initialize(World world)
     {
@@ -25,6 +33,7 @@ public sealed class StatefulAISystem : ISystem
         _velocities = world.GetStore<VelocityComponent>();
         _statefuls = world.GetStore<StatefulAIComponent>();
         _colors = world.GetStore<RenderColorComponent>();
+        _extraSpawns = 0;
     }
 
     public void Update(float deltaTime)
@@ -42,107 +51,169 @@ public sealed class StatefulAISystem : ISystem
             ref VelocityComponent vel = ref _velocities.Get(e);
             ref StatefulAIComponent ai = ref _statefuls.Get(e);
 
-            ai.StateTimer -= deltaTime;
+            float dx = TargetX - pos.X;
+            float dy = TargetY - pos.Y;
+            float distSq = dx * dx + dy * dy;
+            float dist = MathF.Sqrt(distSq);
+            float invDist = dist > 0.001f ? 1f / dist : 0f;
 
-            switch (ai.State)
+            switch (ai.Archetype)
             {
-                case EnemyState.Idle:
-                    float dx = TargetX - pos.X;
-                    float dy = TargetY - pos.Y;
-                    float distSq = dx * dx + dy * dy;
+                case StatefulArchetype.Charger:
+                    ai.StateTimer -= deltaTime;
 
-                    if (distSq > 100f)
+                    switch (ai.State)
                     {
-                        float invDist = 1f / MathF.Sqrt(distSq);
+                        case EnemyState.Idle:
+                            if (dist > 100f)
+                            {
+                                vel.X = dx * invDist * ai.NormalSpeed;
+                                vel.Y = dy * invDist * ai.NormalSpeed;
+                            }
+                            else
+                            {
+                                vel.X = 0;
+                                vel.Y = 0;
+                            }
+
+                            if (ai.StateTimer <= 0f)
+                            {
+                                ai.State = EnemyState.Telegraph;
+                                ai.StateTimer = 0.4f;
+                                vel.X = 0;
+                                vel.Y = 0;
+                                ai.DirX = dx * invDist;
+                                ai.DirY = dy * invDist;
+
+                                if (hasColors && _colors!.Has(e))
+                                {
+                                    ref RenderColorComponent col = ref _colors.Get(e);
+                                    col.R = 255; col.G = 40; col.B = 40;
+                                }
+                            }
+                            break;
+
+                        case EnemyState.Telegraph:
+                            vel.X = 0;
+                            vel.Y = 0;
+
+                            if (ai.StateTimer <= 0f)
+                            {
+                                ai.State = EnemyState.Charge;
+                                ai.StateTimer = 0.6f;
+                                vel.X = ai.DirX * ai.SpecialSpeed;
+                                vel.Y = ai.DirY * ai.SpecialSpeed;
+
+                                if (hasColors && _colors!.Has(e))
+                                {
+                                    ref RenderColorComponent col = ref _colors.Get(e);
+                                    col.R = 255; col.G = 220; col.B = 0;
+                                }
+                            }
+                            break;
+
+                        case EnemyState.Charge:
+                            vel.X = ai.DirX * ai.SpecialSpeed;
+                            vel.Y = ai.DirY * ai.SpecialSpeed;
+
+                            if (ai.StateTimer <= 0f)
+                            {
+                                ai.State = EnemyState.Cooldown;
+                                ai.StateTimer = 0.5f;
+                                vel.X = 0;
+                                vel.Y = 0;
+
+                                if (hasColors && _colors!.Has(e))
+                                {
+                                    ref RenderColorComponent col = ref _colors.Get(e);
+                                    col.R = 90; col.G = 130; col.B = 180;
+                                }
+                            }
+                            break;
+
+                        case EnemyState.Cooldown:
+                            vel.X = 0;
+                            vel.Y = 0;
+
+                            if (ai.StateTimer <= 0f)
+                            {
+                                ai.State = EnemyState.Idle;
+                                ai.StateTimer = 1.8f;
+
+                                if (hasColors && _colors!.Has(e))
+                                {
+                                    ref RenderColorComponent col = ref _colors.Get(e);
+                                    col.R = 230; col.G = 110; col.B = 30;
+                                }
+                            }
+                            break;
+                    }
+                    break;
+
+                case StatefulArchetype.Spitter:
+                    ai.ActionTimer -= deltaTime;
+
+                    if (dist < ai.PreferredDistance - 40f)
+                    {
+                        vel.X = -dx * invDist * ai.NormalSpeed;
+                        vel.Y = -dy * invDist * ai.NormalSpeed;
+                    }
+                    else if (dist > ai.PreferredDistance + 40f)
+                    {
                         vel.X = dx * invDist * ai.NormalSpeed;
                         vel.Y = dy * invDist * ai.NormalSpeed;
                     }
                     else
                     {
-                        vel.X = 0;
-                        vel.Y = 0;
+                        vel.X = -dy * invDist * ai.NormalSpeed * 0.7f;
+                        vel.Y = dx * invDist * ai.NormalSpeed * 0.7f;
                     }
 
-                    if (ai.StateTimer <= 0f)
+                    if (ai.ActionTimer <= 0f)
                     {
-                        ai.State = EnemyState.Telegraph;
-                        ai.StateTimer = ai.TelegraphDuration;
-                        vel.X = 0;
-                        vel.Y = 0;
+                        ai.ActionTimer = ai.ActionInterval;
 
-                        if (distSq > 1f)
+                        if (_extraSpawns < MaxExtraSpawns)
                         {
-                            float invDist = 1f / MathF.Sqrt(distSq);
-                            ai.ChargeDirX = dx * invDist;
-                            ai.ChargeDirY = dy * invDist;
-                        }
-                        else
-                        {
-                            ai.ChargeDirX = 1f;
-                            ai.ChargeDirY = 0f;
-                        }
+                            _extraSpawns++;
+                            float bulletVx = dx * invDist * ai.SpecialSpeed;
+                            float bulletVy = dy * invDist * ai.SpecialSpeed;
+                            float spawnX = pos.X;
+                            float spawnY = pos.Y;
 
-                        if (hasColors && _colors!.Has(e))
-                        {
-                            ref RenderColorComponent col = ref _colors.Get(e);
-                            col.R = 255; col.G = 50; col.B = 50; // Rood: waarschuwing!
+                            _cmd.CreateEntity((w, b) =>
+                            {
+                                w.AddComponent(b, new PositionComponent(spawnX, spawnY));
+                                w.AddComponent(b, new VelocityComponent(bulletVx, bulletVy));
+                                w.AddComponent(b, new RenderColorComponent(220, 80, 255, 255, 3f));
+                            });
                         }
                     }
                     break;
 
-                case EnemyState.Telegraph:
-                    vel.X = 0;
-                    vel.Y = 0;
+                case StatefulArchetype.Summoner:
+                    ai.ActionTimer -= deltaTime;
 
-                    if (ai.StateTimer <= 0f)
+                    vel.X = -dy * invDist * ai.NormalSpeed * 0.4f;
+                    vel.Y = dx * invDist * ai.NormalSpeed * 0.4f;
+
+                    if (ai.ActionTimer <= 0f)
                     {
-                        ai.State = EnemyState.Charge;
-                        ai.StateTimer = ai.ChargeDuration;
-                        vel.X = ai.ChargeDirX * ai.ChargeSpeed;
-                        vel.Y = ai.ChargeDirY * ai.ChargeSpeed;
+                        ai.ActionTimer = ai.ActionInterval;
 
-                        if (hasColors && _colors!.Has(e))
+                        if (_extraSpawns < MaxExtraSpawns)
                         {
-                            ref RenderColorComponent col = ref _colors.Get(e);
-                            col.R = 255; col.G = 220; col.B = 0; // Geel: actieve aanval
-                        }
-                    }
-                    break;
+                            _extraSpawns++;
+                            float spawnX = pos.X + (float)Random.Shared.NextDouble() * 20f - 10f;
+                            float spawnY = pos.Y + (float)Random.Shared.NextDouble() * 20f - 10f;
 
-                case EnemyState.Charge:
-                    // Blijf in de vergrendelde richting bewegen
-                    vel.X = ai.ChargeDirX * ai.ChargeSpeed;
-                    vel.Y = ai.ChargeDirY * ai.ChargeSpeed;
-
-                    if (ai.StateTimer <= 0f)
-                    {
-                        // Overgang naar Cooldown
-                        ai.State = EnemyState.Cooldown;
-                        ai.StateTimer = ai.CooldownDuration;
-                        vel.X = 0;
-                        vel.Y = 0;
-
-                        if (hasColors && _colors!.Has(e))
-                        {
-                            ref RenderColorComponent col = ref _colors.Get(e);
-                            col.R = 80; col.G = 120; col.B = 180; // Blauwgrijs: uitgeput
-                        }
-                    }
-                    break;
-
-                case EnemyState.Cooldown:
-                    vel.X = 0;
-                    vel.Y = 0;
-
-                    if (ai.StateTimer <= 0f)
-                    {
-                        ai.State = EnemyState.Idle;
-                        ai.StateTimer = 1.5f;
-
-                        if (hasColors && _colors!.Has(e))
-                        {
-                            ref RenderColorComponent col = ref _colors.Get(e);
-                            col.R = 220; col.G = 120; col.B = 40; // Oranje: normale vijand
+                            _cmd.CreateEntity((w, m) =>
+                            {
+                                w.AddComponent(m, new PositionComponent(spawnX, spawnY));
+                                w.AddComponent(m, new VelocityComponent(0f, 0f));
+                                w.AddComponent(m, new SwarmAIComponent(80f));
+                                w.AddComponent(m, new RenderColorComponent(80, 255, 120, 240, 2.5f));
+                            });
                         }
                     }
                     break;
@@ -150,4 +221,3 @@ public sealed class StatefulAISystem : ISystem
         }
     }
 }
-

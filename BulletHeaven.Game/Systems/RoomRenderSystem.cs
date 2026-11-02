@@ -28,8 +28,10 @@ public sealed class RoomRenderSystem
         _chargers = world.GetStore<ChargerComponent>();
     }
 
-    public void Draw()
+    public void Draw(Camera2D camera)
     {
+        Raylib.BeginMode2D(camera);
+
         Raylib.DrawRectangleRec(ArenaConfig.Bounds, ArenaConfig.FloorColor);
 
         for (float x = ArenaConfig.Bounds.X + 64f; x < ArenaConfig.Bounds.X + ArenaConfig.Bounds.Width; x += 64f)
@@ -47,43 +49,46 @@ public sealed class RoomRenderSystem
         Rectangle inner = new(ArenaConfig.Bounds.X + 2f, ArenaConfig.Bounds.Y + 2f, ArenaConfig.Bounds.Width - 4f, ArenaConfig.Bounds.Height - 4f);
         Raylib.DrawRectangleLinesEx(inner, 1f, ArenaConfig.WallGlowColor);
 
-        if (_positions == null || _colors == null) return;
-
-        bool hasPlayers = _players != null;
-        bool hasChargers = _chargers != null;
-
-        foreach (Entity e in _world.Query().With<PositionComponent>().With<RenderColorComponent>())
+        if (_positions != null && _colors != null)
         {
-            ref readonly PositionComponent pos = ref _positions.Get(e);
-            ref readonly RenderColorComponent col = ref _colors.Get(e);
+            bool hasPlayers = _players != null;
+            bool hasChargers = _chargers != null;
 
-            if (hasChargers && _chargers!.Has(e))
+            foreach (Entity e in _world.Query().With<PositionComponent>().With<RenderColorComponent>())
             {
-                ref readonly ChargerComponent charger = ref _chargers.Get(e);
-                if (charger.State == EnemyState.Telegraph)
+                ref readonly PositionComponent pos = ref _positions.Get(e);
+                ref readonly RenderColorComponent col = ref _colors.Get(e);
+
+                if (hasChargers && _chargers!.Has(e))
                 {
-                    Vector2 start = new(pos.X, pos.Y);
-                    Vector2 end = new(pos.X + charger.DirX * 130f, pos.Y + charger.DirY * 130f);
-                    Raylib.DrawLineEx(start, end, 2f, new Color(255, 60, 60, 180));
+                    ref readonly ChargerComponent charger = ref _chargers.Get(e);
+                    if (charger.State == EnemyState.Telegraph)
+                    {
+                        Vector2 start = new(pos.X, pos.Y);
+                        Vector2 end = new(pos.X + charger.DirX * 130f, pos.Y + charger.DirY * 130f);
+                        Raylib.DrawLineEx(start, end, 2f, new Color(255, 60, 60, 180));
+                    }
+                }
+
+                Color bodyColor = new(col.R, col.G, col.B, col.A);
+                Raylib.DrawCircle((int)pos.X, (int)pos.Y, col.Radius, bodyColor);
+
+                if (hasPlayers && _players!.Has(e))
+                {
+                    ref readonly PlayerComponent player = ref _players.Get(e);
+
+                    Raylib.DrawCircleLines((int)pos.X, (int)pos.Y, col.Radius, new Color(255, 255, 255, 180));
+                    Raylib.DrawCircle((int)pos.X, (int)pos.Y, 4f, new Color(255, 255, 255, 240));
+
+                    float pointerDist = col.Radius - 2f;
+                    float px = pos.X + MathF.Cos(player.FacingAngle) * pointerDist;
+                    float py = pos.Y + MathF.Sin(player.FacingAngle) * pointerDist;
+                    Raylib.DrawCircle((int)px, (int)py, 3f, new Color(255, 220, 80, 255));
                 }
             }
-
-            Color bodyColor = new(col.R, col.G, col.B, col.A);
-            Raylib.DrawCircle((int)pos.X, (int)pos.Y, col.Radius, bodyColor);
-
-            if (hasPlayers && _players!.Has(e))
-            {
-                ref readonly PlayerComponent player = ref _players.Get(e);
-
-                Raylib.DrawCircleLines((int)pos.X, (int)pos.Y, col.Radius, new Color(255, 255, 255, 180));
-                Raylib.DrawCircle((int)pos.X, (int)pos.Y, 4f, new Color(255, 255, 255, 240));
-
-                float pointerDist = col.Radius - 2f;
-                float px = pos.X + MathF.Cos(player.FacingAngle) * pointerDist;
-                float py = pos.Y + MathF.Sin(player.FacingAngle) * pointerDist;
-                Raylib.DrawCircle((int)px, (int)py, 3f, new Color(255, 220, 80, 255));
-            }
         }
+
+        Raylib.EndMode2D();
 
         string waveText = $"WAVE {_waveSystem.CurrentWaveNumber}";
         string timeText = $"TIME: {_waveSystem.TimeRemaining:0.0}s";
@@ -95,6 +100,8 @@ public sealed class RoomRenderSystem
         int hudX = (1280 - textWidth) / 2;
         Raylib.DrawText(hud, hudX, 20, fontSize, new Color(220, 230, 245, 255));
 
-        Raylib.DrawText("WASD / ARROW KEYS TO MOVE", 510, 680, 16, new Color(130, 145, 170, 255));
+        string hint = "WASD / ARROW KEYS TO MOVE";
+        int hintWidth = Raylib.MeasureText(hint, 16);
+        Raylib.DrawText(hint, (1280 - hintWidth) / 2, 685, 16, new Color(130, 145, 170, 255));
     }
 }

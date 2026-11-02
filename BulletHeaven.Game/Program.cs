@@ -1,11 +1,13 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using BulletHeaven.ECS;
 using BulletHeaven.ECS.Core;
 using BulletHeaven.ECS.Systems;
 using BulletHeaven.Game.Benchmarking;
 using BulletHeaven.Game.Components;
+using BulletHeaven.Game.Rendering;
 using BulletHeaven.Game.Systems;
 using BulletHeaven.Game.Systems.AI;
 using Raylib_cs;
@@ -57,8 +59,11 @@ public static class Program
         scheduler.Initialize(world);
 
         var roomRenderer = new RoomRenderSystem(world, waveSystem);
+        var cameraService = new CameraService(ScreenWidth, ScreenHeight, new Vector2(1100f, 700f));
 
         SpawnPlayer(world);
+
+        var positions = world.GetStore<PositionComponent>();
 
         while (!Raylib.WindowShouldClose())
         {
@@ -67,10 +72,23 @@ public static class Program
             scheduler.UpdateAll(deltaTime);
             cmd.Flush(world);
 
-            Raylib.BeginDrawing();
-            Raylib.ClearBackground(new Color(12, 14, 20, 255));
+            Vector2 playerPos = cameraService.Camera.Target;
+            if (positions != null)
+            {
+                foreach (Entity e in world.Query().With<PositionComponent>().With<PlayerComponent>())
+                {
+                    ref readonly PositionComponent pos = ref positions.Get(e);
+                    playerPos = new Vector2(pos.X, pos.Y);
+                    break;
+                }
+            }
 
-            roomRenderer.Draw();
+            cameraService.Update(playerPos, deltaTime);
+
+            Raylib.BeginDrawing();
+            Raylib.ClearBackground(new Color(10, 11, 16, 255));
+
+            roomRenderer.Draw(cameraService.Camera);
 
             Raylib.DrawFPS(ScreenWidth - 90, 20);
 
@@ -88,7 +106,7 @@ public static class Program
     private static void SpawnPlayer(World world)
     {
         Entity player = world.CreateEntity();
-        world.AddComponent(player, new PositionComponent(640f, 360f));
+        world.AddComponent(player, new PositionComponent(1100f, 700f));
         world.AddComponent(player, new VelocityComponent(0f, 0f));
         world.AddComponent(player, new PlayerComponent(280f));
         world.AddComponent(player, new RenderColorComponent(60, 200, 190, 255, 16f));

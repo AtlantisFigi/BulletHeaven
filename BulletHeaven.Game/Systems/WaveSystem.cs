@@ -1,3 +1,4 @@
+using System;
 using BulletHeaven.ECS;
 using BulletHeaven.ECS.Core;
 using BulletHeaven.ECS.Storage;
@@ -23,6 +24,8 @@ public sealed class WaveSystem : ISystem
     public int CurrentWaveNumber => _currentWave.WaveNumber;
     public float TimeRemaining => MathF.Max(0f, _waveTimer);
     public int ActiveEnemyCount => _activeEnemies;
+    public bool IsWaveRunning { get; private set; }
+    public bool WaveCompleted { get; private set; }
 
     public WaveSystem(CommandBuffer cmd)
     {
@@ -34,7 +37,9 @@ public sealed class WaveSystem : ISystem
     {
         _world = world;
         _enemies = world.GetStore<EnemyComponent>();
-        StartWave(1);
+        _waveTimer = _currentWave.DurationSeconds;
+        IsWaveRunning = false;
+        WaveCompleted = false;
     }
 
     public void StartWave(int waveNumber)
@@ -44,9 +49,24 @@ public sealed class WaveSystem : ISystem
         _spawnCooldown = 0.3f;
     }
 
+    public void StartCurrentWave()
+    {
+        IsWaveRunning = true;
+        WaveCompleted = false;
+        _waveTimer = _currentWave.DurationSeconds;
+        _spawnCooldown = 0.3f;
+    }
+
+    public void StartNextWave()
+    {
+        StartWave(_currentWave.WaveNumber + 1);
+        IsWaveRunning = true;
+        WaveCompleted = false;
+    }
+
     public void Update(float deltaTime)
     {
-        if (_world == null) return;
+        if (!IsWaveRunning || _world == null) return;
 
         _activeEnemies = _enemies != null ? _enemies.Count : 0;
 
@@ -59,7 +79,8 @@ public sealed class WaveSystem : ISystem
                 _cmd.DestroyEntity(e);
             }
 
-            StartWave(_currentWave.WaveNumber + 1);
+            IsWaveRunning = false;
+            WaveCompleted = true;
             return;
         }
 
@@ -112,4 +133,3 @@ public sealed class WaveSystem : ISystem
         }
     }
 }
-

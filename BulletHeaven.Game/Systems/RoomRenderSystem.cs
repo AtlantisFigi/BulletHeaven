@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using BulletHeaven.ECS;
 using BulletHeaven.ECS.Core;
@@ -5,6 +6,7 @@ using BulletHeaven.ECS.Storage;
 using BulletHeaven.Game.Arena;
 using BulletHeaven.Game.Components;
 using BulletHeaven.Game.Components.AI;
+using BulletHeaven.Game.Weapons;
 using Raylib_cs;
 
 namespace BulletHeaven.Game.Systems;
@@ -17,6 +19,7 @@ public sealed class RoomRenderSystem
     private ComponentStore<PlayerComponent>? _players;
     private ComponentStore<RenderColorComponent>? _colors;
     private ComponentStore<ChargerComponent>? _chargers;
+    private ComponentStore<EquipmentComponent>? _equipments;
 
     public RoomRenderSystem(World world, WaveSystem waveSystem)
     {
@@ -26,6 +29,7 @@ public sealed class RoomRenderSystem
         _players = world.GetStore<PlayerComponent>();
         _colors = world.GetStore<RenderColorComponent>();
         _chargers = world.GetStore<ChargerComponent>();
+        _equipments = world.GetStore<EquipmentComponent>();
     }
 
     public void Draw(Camera2D camera)
@@ -49,11 +53,12 @@ public sealed class RoomRenderSystem
         Rectangle inner = new(ArenaConfig.Bounds.X + 2f, ArenaConfig.Bounds.Y + 2f, ArenaConfig.Bounds.Width - 4f, ArenaConfig.Bounds.Height - 4f);
         Raylib.DrawRectangleLinesEx(inner, 1f, ArenaConfig.WallGlowColor);
 
+        bool hasPlayers = _players != null;
+        bool hasChargers = _chargers != null;
+        bool hasEquipments = _equipments != null;
+
         if (_positions != null && _colors != null)
         {
-            bool hasPlayers = _players != null;
-            bool hasChargers = _chargers != null;
-
             foreach (Entity e in _world.Query().With<PositionComponent>().With<RenderColorComponent>())
             {
                 ref readonly PositionComponent pos = ref _positions.Get(e);
@@ -84,6 +89,24 @@ public sealed class RoomRenderSystem
                     float px = pos.X + MathF.Cos(player.FacingAngle) * pointerDist;
                     float py = pos.Y + MathF.Sin(player.FacingAngle) * pointerDist;
                     Raylib.DrawCircle((int)px, (int)py, 3f, new Color(255, 220, 80, 255));
+
+                    if (hasEquipments && _equipments!.Has(e))
+                    {
+                        var equip = _equipments.Get(e);
+                        for (int s = 0; s < equip.Slots.Length; s++)
+                        {
+                            var slot = equip.Slots[s];
+                            if (slot.VisualTimer > 0f && slot.Weapon != null && slot.Weapon.Definition.Type == WeaponType.Melee)
+                            {
+                                float halfArc = (slot.Weapon.Definition.MeleeArcDegrees * 0.5f) * (MathF.PI / 180f);
+                                float startDeg = (slot.AttackAngle - halfArc) * (180f / MathF.PI);
+                                float endDeg = (slot.AttackAngle + halfArc) * (180f / MathF.PI);
+                                int alpha = (int)((slot.VisualTimer / slot.VisualDuration) * 220f);
+                                Raylib.DrawCircleSectorLines(new Vector2(pos.X, pos.Y), slot.AttackRange, startDeg, endDeg, 16, new Color(245, 230, 210, alpha));
+                                Raylib.DrawCircleSectorLines(new Vector2(pos.X, pos.Y), slot.AttackRange * 0.82f, startDeg, endDeg, 16, new Color(255, 255, 255, (int)(alpha * 0.5f)));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -99,9 +122,5 @@ public sealed class RoomRenderSystem
         int textWidth = Raylib.MeasureText(hud, fontSize);
         int hudX = (1280 - textWidth) / 2;
         Raylib.DrawText(hud, hudX, 20, fontSize, new Color(220, 230, 245, 255));
-
-        string hint = "WASD / ARROW KEYS TO MOVE";
-        int hintWidth = Raylib.MeasureText(hint, 16);
-        Raylib.DrawText(hint, (1280 - hintWidth) / 2, 685, 16, new Color(130, 145, 170, 255));
     }
 }

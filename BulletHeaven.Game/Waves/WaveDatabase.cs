@@ -13,7 +13,7 @@ public static class WaveDatabase
                 SpawnInterval = 0.85f,
                 BatchMin = 2,
                 BatchMax = 3,
-                MaxActiveEnemies = 60,
+                MaxActiveEnemies = 100,
                 EnemyPool = new[]
                 {
                     new EnemySpawnWeight(EnemyType.Swarmer, 100)

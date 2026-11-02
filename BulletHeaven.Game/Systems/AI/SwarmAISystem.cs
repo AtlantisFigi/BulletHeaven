@@ -29,6 +29,14 @@ public sealed class SwarmAISystem : ISystem
     {
         if (_world == null || _positions == null || _velocities == null || _swarms == null) return;
 
+        foreach (Entity p in _world.Query().With<PositionComponent>().With<PlayerComponent>())
+        {
+            ref readonly PositionComponent pPos = ref _positions.Get(p);
+            TargetX = pPos.X;
+            TargetY = pPos.Y;
+            break;
+        }
+
         foreach (Entity e in _world.Query()
             .With<PositionComponent>()
             .With<VelocityComponent>()
@@ -47,11 +55,6 @@ public sealed class SwarmAISystem : ISystem
                 float invDist = 1f / MathF.Sqrt(distSq);
                 vel.X = dx * invDist * swarm.Speed;
                 vel.Y = dy * invDist * swarm.Speed;
-            }
-            else
-            {
-                vel.X = 0f;
-                vel.Y = 0f;
             }
         }
     }

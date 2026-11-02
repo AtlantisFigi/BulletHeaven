@@ -38,6 +38,14 @@ public sealed class SpitterSystem : ISystem
     {
         if (_world == null || _positions == null || _velocities == null || _spitters == null) return;
 
+        foreach (Entity p in _world.Query().With<PositionComponent>().With<PlayerComponent>())
+        {
+            ref readonly PositionComponent pPos = ref _positions.Get(p);
+            TargetX = pPos.X;
+            TargetY = pPos.Y;
+            break;
+        }
+
         foreach (Entity e in _world.Query()
             .With<PositionComponent>()
             .With<VelocityComponent>()

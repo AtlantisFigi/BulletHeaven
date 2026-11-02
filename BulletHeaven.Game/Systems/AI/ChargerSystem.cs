@@ -31,6 +31,14 @@ public sealed class ChargerSystem : ISystem
     {
         if (_world == null || _positions == null || _velocities == null || _chargers == null) return;
 
+        foreach (Entity p in _world.Query().With<PositionComponent>().With<PlayerComponent>())
+        {
+            ref readonly PositionComponent pPos = ref _positions.Get(p);
+            TargetX = pPos.X;
+            TargetY = pPos.Y;
+            break;
+        }
+
         bool hasColors = _colors != null;
 
         foreach (Entity e in _world.Query()

@@ -30,12 +30,6 @@ public sealed class MovementSystem : ISystem
 
             pos.X += vel.X * deltaTime;
             pos.Y += vel.Y * deltaTime;
-
-            if (pos.X < 0) pos.X += 1280;
-            else if (pos.X > 1280) pos.X -= 1280;
-            if (pos.Y < 0) pos.Y += 720;
-            else if (pos.Y > 720) pos.Y -= 720;
         }
     }
 }
-

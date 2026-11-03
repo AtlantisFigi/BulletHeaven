@@ -16,7 +16,7 @@ public static class WaveDatabase
                 MaxActiveEnemies = 100,
                 EnemyPool = new[]
                 {
-                    new EnemySpawnWeight(EnemyType.Swarmer, 100)
+                    new EnemySpawnWeight(EnemyType.Basic, 100)
                 }
             },
             2 => new WaveDefinition
@@ -29,8 +29,7 @@ public static class WaveDatabase
                 MaxActiveEnemies = 80,
                 EnemyPool = new[]
                 {
-                    new EnemySpawnWeight(EnemyType.Swarmer, 75),
-                    new EnemySpawnWeight(EnemyType.Charger, 25)
+                    new EnemySpawnWeight(EnemyType.Basic, 100)
                 }
             },
             3 => new WaveDefinition
@@ -43,9 +42,7 @@ public static class WaveDatabase
                 MaxActiveEnemies = 100,
                 EnemyPool = new[]
                 {
-                    new EnemySpawnWeight(EnemyType.Swarmer, 50),
-                    new EnemySpawnWeight(EnemyType.Charger, 30),
-                    new EnemySpawnWeight(EnemyType.Spitter, 20)
+                    new EnemySpawnWeight(EnemyType.Basic, 100)
                 }
             },
             _ => new WaveDefinition
@@ -58,12 +55,9 @@ public static class WaveDatabase
                 MaxActiveEnemies = 100 + (waveNumber - 3) * 20,
                 EnemyPool = new[]
                 {
-                    new EnemySpawnWeight(EnemyType.Swarmer, 40),
-                    new EnemySpawnWeight(EnemyType.Charger, 35),
-                    new EnemySpawnWeight(EnemyType.Spitter, 25)
+                    new EnemySpawnWeight(EnemyType.Basic, 100)
                 }
             }
         };
     }
 }
-

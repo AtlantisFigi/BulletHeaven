@@ -69,8 +69,6 @@ public static class Program
         var weaponSystem = new WeaponSystem(cmd, spatialSystem.Grid);
         var projectileSystem = new ProjectileSystem(cmd, spatialSystem.Grid);
         var swarmSystem = new SwarmAISystem();
-        var chargerSystem = new ChargerSystem();
-        var spitterSystem = new SpitterSystem(cmd);
 
         scheduler.Register(inputSystem)
                  .Register(playerStatsSystem)
@@ -80,9 +78,7 @@ public static class Program
                  .Register(spatialSystem)
                  .Register(weaponSystem)
                  .Register(projectileSystem)
-                 .Register(swarmSystem)
-                 .Register(chargerSystem)
-                 .Register(spitterSystem);
+                 .Register(swarmSystem);
 
         scheduler.Initialize(world);
 

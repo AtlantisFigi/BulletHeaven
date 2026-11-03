@@ -5,7 +5,6 @@ using BulletHeaven.ECS.Core;
 using BulletHeaven.ECS.Storage;
 using BulletHeaven.Game.Arena;
 using BulletHeaven.Game.Components;
-using BulletHeaven.Game.Components.AI;
 using BulletHeaven.Game.Systems.Combat;
 using BulletHeaven.Game.Weapons;
 using Raylib_cs;
@@ -20,7 +19,6 @@ public sealed class RoomRenderSystem
     private ComponentStore<PlayerComponent>? _players;
     private ComponentStore<PlayerStatsComponent>? _stats;
     private ComponentStore<RenderColorComponent>? _colors;
-    private ComponentStore<ChargerComponent>? _chargers;
     private ComponentStore<EquipmentComponent>? _equipments;
 
     public RoomRenderSystem(World world, WaveSystem waveSystem)
@@ -31,7 +29,6 @@ public sealed class RoomRenderSystem
         _players = world.GetStore<PlayerComponent>();
         _stats = world.GetStore<PlayerStatsComponent>();
         _colors = world.GetStore<RenderColorComponent>();
-        _chargers = world.GetStore<ChargerComponent>();
         _equipments = world.GetStore<EquipmentComponent>();
     }
 
@@ -58,7 +55,6 @@ public sealed class RoomRenderSystem
 
         bool hasPlayers = _players != null;
         bool hasStats = _stats != null;
-        bool hasChargers = _chargers != null;
         bool hasEquipments = _equipments != null;
 
         float zoom = camera.Zoom > 0.001f ? camera.Zoom : 1f;
@@ -83,17 +79,6 @@ public sealed class RoomRenderSystem
                         pos.Y + col.Radius < viewTop - 32f || pos.Y - col.Radius > viewBottom + 32f)
                     {
                         continue;
-                    }
-                }
-
-                if (hasChargers && _chargers!.Has(e))
-                {
-                    ref readonly ChargerComponent charger = ref _chargers.Get(e);
-                    if (charger.State == EnemyState.Telegraph)
-                    {
-                        Vector2 start = new(pos.X, pos.Y);
-                        Vector2 end = new(pos.X + charger.DirX * 130f, pos.Y + charger.DirY * 130f);
-                        Raylib.DrawLineEx(start, end, 2f, new Color(255, 60, 60, 180));
                     }
                 }
 

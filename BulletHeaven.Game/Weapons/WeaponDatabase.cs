@@ -52,7 +52,8 @@ public static class WeaponDatabase
             ProjectileSpeed = 580f,
             ProjectileRadius = 3f,
             Knockback = 20f,
-            Color = new Color(200, 100, 255, 255)
+            Color = new Color(200, 100, 255, 255),
+            CritChanceBonus = 0.10f
         },
         ["acid_carapace"] = new WeaponDefinition
         {
@@ -108,12 +109,8 @@ public static class WeaponDatabase
             Slot = EquipSlot.Head,
             Type = WeaponType.Passive,
             Keywords = WeaponKeywords.Bio | WeaponKeywords.Crit,
-            BaseDamage = 0f,
-            AttackInterval = 0f,
-            Range = 0f,
-            ProjectileSpeed = 0f,
-            ProjectileRadius = 0f,
-            Knockback = 0f,
+            CritChanceBonus = 0.20f,
+            RangeMultiplierBonus = 0.30f,
             Color = new Color(160, 220, 255, 255)
         },
         ["echo_antennae"] = new WeaponDefinition
@@ -124,12 +121,9 @@ public static class WeaponDatabase
             Slot = EquipSlot.Head,
             Type = WeaponType.Passive,
             Keywords = WeaponKeywords.Bio | WeaponKeywords.Rapid,
-            BaseDamage = 0f,
-            AttackInterval = 0f,
-            Range = 0f,
-            ProjectileSpeed = 0f,
-            ProjectileRadius = 0f,
-            Knockback = 0f,
+            RangeMultiplierBonus = 0.40f,
+            LongRangeThreshold = 300f,
+            LongRangeDamageMultiplier = 1.5f,
             Color = new Color(220, 140, 255, 255)
         },
         ["adrenaline_overcharger"] = new WeaponDefinition
@@ -140,10 +134,6 @@ public static class WeaponDatabase
             Slot = EquipSlot.Chest,
             Type = WeaponType.Passive,
             Keywords = WeaponKeywords.Bio | WeaponKeywords.Berserk,
-            BaseDamage = 0f,
-            AttackInterval = 0f,
-            Range = 0f,
-            Knockback = 0f,
             Color = new Color(255, 60, 80, 255)
         },
         ["syringe_harpoon"] = new WeaponDefinition
@@ -160,6 +150,8 @@ public static class WeaponDatabase
             ProjectileSpeed = 700f,
             ProjectileRadius = 5f,
             Knockback = 80f,
+            PiercingHits = 3,
+            LifestealOnCrit = 3f,
             Color = new Color(255, 120, 80, 255)
         },
         ["synaptic_arc_claw"] = new WeaponDefinition
@@ -175,6 +167,9 @@ public static class WeaponDatabase
             Range = 135f,
             MeleeArcDegrees = 120f,
             Knockback = 140f,
+            ChainTargets = 2,
+            ChainRange = 160f,
+            ChainDamageRatio = 0.6f,
             Color = new Color(80, 220, 255, 255)
         },
         ["rooted_osteo_spikes"] = new WeaponDefinition
@@ -185,10 +180,6 @@ public static class WeaponDatabase
             Slot = EquipSlot.Legs,
             Type = WeaponType.Passive,
             Keywords = WeaponKeywords.Bio | WeaponKeywords.Stationary,
-            BaseDamage = 0f,
-            AttackInterval = 0f,
-            Range = 0f,
-            Knockback = 0f,
             Color = new Color(240, 220, 180, 255)
         },
         ["piston_burst_boots"] = new WeaponDefinition
@@ -199,12 +190,6 @@ public static class WeaponDatabase
             Slot = EquipSlot.Legs,
             Type = WeaponType.Passive,
             Keywords = WeaponKeywords.Bio | WeaponKeywords.Burst,
-            BaseDamage = 0f,
-            AttackInterval = 0f,
-            Range = 0f,
-            ProjectileSpeed = 0f,
-            ProjectileRadius = 0f,
-            Knockback = 0f,
             Color = new Color(120, 255, 220, 255)
         }
     };

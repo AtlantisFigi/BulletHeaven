@@ -61,12 +61,30 @@ public sealed class RoomRenderSystem
         bool hasChargers = _chargers != null;
         bool hasEquipments = _equipments != null;
 
+        float zoom = camera.Zoom > 0.001f ? camera.Zoom : 1f;
+        float viewW = 1280f / zoom;
+        float viewH = 720f / zoom;
+        float viewLeft = camera.Target.X - (camera.Offset.X / zoom);
+        float viewTop = camera.Target.Y - (camera.Offset.Y / zoom);
+        float viewRight = viewLeft + viewW;
+        float viewBottom = viewTop + viewH;
+
         if (_positions != null && _colors != null)
         {
             foreach (Entity e in _world.Query().With<PositionComponent>().With<RenderColorComponent>())
             {
                 ref readonly PositionComponent pos = ref _positions.Get(e);
                 ref readonly RenderColorComponent col = ref _colors.Get(e);
+                bool isPlayer = hasPlayers && _players!.Has(e);
+
+                if (!isPlayer)
+                {
+                    if (pos.X + col.Radius < viewLeft - 32f || pos.X - col.Radius > viewRight + 32f ||
+                        pos.Y + col.Radius < viewTop - 32f || pos.Y - col.Radius > viewBottom + 32f)
+                    {
+                        continue;
+                    }
+                }
 
                 if (hasChargers && _chargers!.Has(e))
                 {
@@ -82,9 +100,9 @@ public sealed class RoomRenderSystem
                 Color bodyColor = new(col.R, col.G, col.B, col.A);
                 Raylib.DrawCircle((int)pos.X, (int)pos.Y, col.Radius, bodyColor);
 
-                if (hasPlayers && _players!.Has(e))
+                if (isPlayer)
                 {
-                    ref readonly PlayerComponent player = ref _players.Get(e);
+                    ref readonly PlayerComponent player = ref _players!.Get(e);
 
                     Raylib.DrawCircleLines((int)pos.X, (int)pos.Y, col.Radius, new Color(255, 255, 255, 180));
                     Raylib.DrawCircle((int)pos.X, (int)pos.Y, 4f, new Color(255, 255, 255, 240));

@@ -82,16 +82,13 @@ public sealed class PlayerStatsSystem : ISystem
 
                     var def = weapon.Definition;
 
-                    if ((def.Keywords & WeaponKeywords.Crit) != 0 || def.Id == "trepanned_eye")
-                    {
-                        stats.CritChance += 0.20f;
-                        stats.RangeMultiplier += 0.30f;
-                    }
-
-                    if (def.Id == "echo_antennae")
-                    {
-                        stats.RangeMultiplier += 0.40f;
-                    }
+                    stats.CritChance += def.CritChanceBonus;
+                    stats.CritMultiplier += def.CritMultiplierBonus;
+                    stats.RangeMultiplier += def.RangeMultiplierBonus;
+                    stats.DamageMultiplier += def.DamageMultiplierBonus;
+                    stats.AttackSpeedMultiplier += def.AttackSpeedMultiplierBonus;
+                    stats.HealthRegen += def.HealthRegenBonus;
+                    stats.MoveSpeedMultiplier += def.MoveSpeedMultiplierBonus;
 
                     if ((def.Keywords & WeaponKeywords.Berserk) != 0)
                     {

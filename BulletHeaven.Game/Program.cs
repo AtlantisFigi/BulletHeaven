@@ -63,24 +63,26 @@ public static class Program
         var inputSystem = new PlayerInputSystem();
         var playerStatsSystem = new PlayerStatsSystem();
         var waveSystem = new WaveSystem(cmd);
-        var weaponSystem = new WeaponSystem(cmd);
-        var projectileSystem = new ProjectileSystem(cmd);
+        var movementSystem = new MovementSystem();
+        var boundsSystem = new ArenaBoundsSystem();
+        var spatialSystem = new SpatialGridSystem();
+        var weaponSystem = new WeaponSystem(cmd, spatialSystem.Grid);
+        var projectileSystem = new ProjectileSystem(cmd, spatialSystem.Grid);
         var swarmSystem = new SwarmAISystem();
         var chargerSystem = new ChargerSystem();
         var spitterSystem = new SpitterSystem(cmd);
-        var movementSystem = new MovementSystem();
-        var boundsSystem = new ArenaBoundsSystem();
 
         scheduler.Register(inputSystem)
                  .Register(playerStatsSystem)
                  .Register(waveSystem)
+                 .Register(movementSystem)
+                 .Register(boundsSystem)
+                 .Register(spatialSystem)
                  .Register(weaponSystem)
                  .Register(projectileSystem)
                  .Register(swarmSystem)
                  .Register(chargerSystem)
-                 .Register(spitterSystem)
-                 .Register(movementSystem)
-                 .Register(boundsSystem);
+                 .Register(spitterSystem);
 
         scheduler.Initialize(world);
 

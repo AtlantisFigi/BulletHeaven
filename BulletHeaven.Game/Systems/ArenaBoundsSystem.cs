@@ -46,14 +46,6 @@ public sealed class ArenaBoundsSystem : ISystem
             pos.X = Math.Clamp(pos.X, minX + radius, maxX - radius);
             pos.Y = Math.Clamp(pos.Y, minY + radius, maxY - radius);
         }
-
-        foreach (Entity e in _world.Query().With<PositionComponent>().With<EnemyComponent>())
-        {
-            ref PositionComponent pos = ref _positions.Get(e);
-            float radius = _colors != null && _colors.Has(e) ? _colors.Get(e).Radius : 12f;
-
-            pos.X = Math.Clamp(pos.X, minX + radius, maxX - radius);
-            pos.Y = Math.Clamp(pos.Y, minY + radius, maxY - radius);
-        }
     }
 }
+

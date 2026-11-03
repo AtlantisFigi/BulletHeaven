@@ -23,7 +23,6 @@ public sealed class LoadoutScreen
     };
 
     private WeaponItem? _inspectedItem;
-    private bool _isInspectedEquipped;
 
     public void Draw(World world, WaveSystem waveSystem, Vector2 mousePos, Action onStartWave, Action onOpenSettings)
     {
@@ -55,6 +54,18 @@ public sealed class LoadoutScreen
 
         Raylib.DrawRectangle(0, 0, 1280, 720, new Color(8, 11, 17, 245));
 
+        DrawHeaderAndSettings(mousePos, mouseClicked, onOpenSettings);
+
+        WeaponItem? hoveredInventoryItem = null;
+        DrawInventorySection(ref stash, ref equip, mousePos, mouseClicked, ref hoveredInventoryItem);
+        DrawOperatorVitals(ref player, playerEntity, ref equip, healthStore, statsStore);
+        DrawPaperdollSection(ref equip, ref stash, mousePos, mouseClicked, hoveredInventoryItem);
+        DrawInspectorSection();
+        DrawWaveLaunchSection(waveSystem, mousePos, mouseClicked, onStartWave);
+    }
+
+    private static void DrawHeaderAndSettings(Vector2 mousePos, bool mouseClicked, Action onOpenSettings)
+    {
         Rectangle settingsBtn = new(1130f, 20f, 100f, 30f);
         bool setHover = Raylib.CheckCollisionPointRec(mousePos, settingsBtn);
         Raylib.DrawRectangleRec(settingsBtn, setHover ? new Color(28, 42, 60, 255) : new Color(18, 26, 38, 255));
@@ -68,25 +79,16 @@ public sealed class LoadoutScreen
         {
             onOpenSettings();
         }
+    }
 
-        string title = "MUTAGEN LOADOUT & ANATOMY";
-        int titleW = Raylib.MeasureText(title, 24);
-        Raylib.DrawText(title, (1280 - titleW) / 2, 22, 24, new Color(80, 235, 215, 255));
-
-        string subtitle = waveSystem.WaveCompleted
-            ? $"WAVE {waveSystem.CurrentWaveNumber} CLEARED — ENHANCE YOUR BIOLOGICAL ARSENAL"
-            : $"WAVE {waveSystem.CurrentWaveNumber} PREPARATION — CONFIGURE ANATOMICAL SLOTS";
-        int subW = Raylib.MeasureText(subtitle, 13);
-        Raylib.DrawText(subtitle, (1280 - subW) / 2, 52, 13, new Color(135, 160, 195, 255));
-
-        Raylib.DrawText("INVENTORY (6)", 50, 92, 13, new Color(175, 195, 220, 255));
+    private void DrawInventorySection(ref BioStashComponent stash, ref EquipmentComponent equip, Vector2 mousePos, bool mouseClicked, ref WeaponItem? hoveredInventoryItem)
+    {
+        Raylib.DrawText("INVENTORY", 50, 92, 13, new Color(175, 195, 220, 255));
 
         float leftStartX = 50f;
         float leftStartY = 116f;
         float invSize = 100f;
         float invGap = 14f;
-
-        WeaponItem? hoveredInventoryItem = null;
 
         for (int i = 0; i < 6; i++)
         {
@@ -104,11 +106,10 @@ public sealed class LoadoutScreen
                 {
                     hoveredInventoryItem = item;
                     _inspectedItem = item;
-                    _isInspectedEquipped = false;
                 }
 
                 Raylib.DrawRectangleLinesEx(rect, isHovered ? 2.5f : 1.5f, item.RarityColor);
-                DrawCenteredText(item.Definition.Name, rect, 12, Color.White);
+                DrawCenteredText($"{item.Definition.Name} {ToRoman(item.Tier)}", rect, 11, Color.White);
 
                 if (isHovered && mouseClicked)
                 {
@@ -118,7 +119,6 @@ public sealed class LoadoutScreen
                         equip.Equip(matchingSlot, item);
                         stash.Remove(item);
                         hoveredInventoryItem = null;
-                        _isInspectedEquipped = true;
                     }
                 }
             }
@@ -127,8 +127,11 @@ public sealed class LoadoutScreen
                 Raylib.DrawRectangleLinesEx(rect, 1f, new Color(36, 44, 60, 180));
             }
         }
+    }
 
-        Rectangle vitalsRect = new(50f, 470f, 214f, 195f);
+    private static void DrawOperatorVitals(ref PlayerComponent player, Entity playerEntity, ref EquipmentComponent equip, ComponentStore<HealthComponent>? healthStore, ComponentStore<PlayerStatsComponent>? statsStore)
+    {
+        Rectangle vitalsRect = new(50f, 470f, 214f, 165f);
         Raylib.DrawRectangleRec(vitalsRect, new Color(13, 16, 24, 255));
         Raylib.DrawRectangleLinesEx(vitalsRect, 1.5f, new Color(36, 48, 68, 200));
 
@@ -170,10 +173,10 @@ public sealed class LoadoutScreen
 
         Raylib.DrawText("EQUIPPED:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 134, 11, new Color(150, 165, 185, 255));
         Raylib.DrawText($"{equippedCount} / 5", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 134, 11, new Color(80, 240, 180, 255));
+    }
 
-        Raylib.DrawLine((int)vitalsRect.X + 12, (int)vitalsRect.Y + 158, (int)vitalsRect.X + (int)vitalsRect.Width - 12, (int)vitalsRect.Y + 158, new Color(36, 48, 68, 180));
-        Raylib.DrawText("CLICK ITEM TO EQUIP / UNEQUIP", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 172, 10, new Color(110, 130, 160, 255));
-
+    private void DrawPaperdollSection(ref EquipmentComponent equip, ref BioStashComponent stash, Vector2 mousePos, bool mouseClicked, WeaponItem? hoveredInventoryItem)
+    {
         float bodyCenter = 490f;
         float slotSize = 100f;
         float bodyCenterLeft = bodyCenter - slotSize * 0.5f;
@@ -213,11 +216,10 @@ public sealed class LoadoutScreen
                 if (isHovered)
                 {
                     _inspectedItem = slot.Weapon;
-                    _isInspectedEquipped = true;
                 }
 
                 Raylib.DrawRectangleLinesEx(rect, isHovered ? 2.5f : 1.5f, slot.Weapon.RarityColor);
-                DrawCenteredText(slot.Weapon.Definition.Name, rect, 12, Color.White);
+                DrawCenteredText($"{slot.Weapon.Definition.Name} {ToRoman(slot.Weapon.Tier)}", rect, 11, Color.White);
 
                 if (isHovered && mouseClicked)
                 {
@@ -227,7 +229,6 @@ public sealed class LoadoutScreen
                         if (unequipped != null)
                         {
                             stash.Add(unequipped);
-                            _isInspectedEquipped = false;
                         }
                     }
                 }
@@ -242,7 +243,10 @@ public sealed class LoadoutScreen
                 DrawCenteredText(SlotLabels[i], rect, 11, textColor);
             }
         }
+    }
 
+    private void DrawInspectorSection()
+    {
         Rectangle inspectorRect = new(710f, 92f, 520f, 480f);
         Raylib.DrawRectangleRec(inspectorRect, new Color(13, 16, 24, 255));
 
@@ -254,15 +258,19 @@ public sealed class LoadoutScreen
             var item = _inspectedItem;
 
             Raylib.DrawText(item.Definition.Name, (int)inspectorRect.X + 22, (int)inspectorRect.Y + 20, 20, Color.White);
-
-            string tierText = $"TIER {item.Tier} ({item.Rarity.ToString().ToUpper()})";
-            Raylib.DrawText(tierText, (int)inspectorRect.X + 22, (int)inspectorRect.Y + 48, 12, item.RarityColor);
-
-            string slotBadge = $"SLOT: [{item.Definition.Slot.ToString().ToUpper()}]";
-            Raylib.DrawText(slotBadge, (int)inspectorRect.X + 220, (int)inspectorRect.Y + 48, 12, new Color(80, 230, 210, 255));
+            int nameW = Raylib.MeasureText(item.Definition.Name, 20);
+            Raylib.DrawText(ToRoman(item.Tier), (int)inspectorRect.X + 22 + nameW + 10, (int)inspectorRect.Y + 20, 20, item.RarityColor);
 
             int tagX = (int)inspectorRect.X + 22;
-            int tagY = (int)inspectorRect.Y + 74;
+            int tagY = (int)inspectorRect.Y + 50;
+
+            string slotBadge = $"[{item.Definition.Slot.ToString().ToUpper()}]";
+            int sbw = Raylib.MeasureText(slotBadge, 11);
+            Rectangle slotPill = new(tagX, tagY, sbw + 10, 20);
+            Raylib.DrawRectangleRec(slotPill, new Color(18, 38, 38, 255));
+            Raylib.DrawRectangleLinesEx(slotPill, 1f, new Color(60, 200, 175, 255));
+            Raylib.DrawText(slotBadge, tagX + 5, tagY + 4, 11, new Color(100, 240, 215, 255));
+            tagX += sbw + 16;
 
             foreach (WeaponKeywords kw in Enum.GetValues<WeaponKeywords>())
             {
@@ -279,83 +287,92 @@ public sealed class LoadoutScreen
                 }
             }
 
-            Raylib.DrawLine((int)inspectorRect.X + 22, (int)inspectorRect.Y + 106, (int)inspectorRect.X + (int)inspectorRect.Width - 22, (int)inspectorRect.Y + 106, new Color(36, 48, 68, 180));
+            Raylib.DrawLine((int)inspectorRect.X + 22, (int)inspectorRect.Y + 80, (int)inspectorRect.X + (int)inspectorRect.Width - 22, (int)inspectorRect.Y + 80, new Color(36, 48, 68, 180));
 
-            Raylib.DrawText("MUTATION SPECIFICATIONS", (int)inspectorRect.X + 22, (int)inspectorRect.Y + 120, 11, new Color(125, 150, 180, 255));
-
-            int statY = (int)inspectorRect.Y + 144;
+            int statY = (int)inspectorRect.Y + 98;
             int statCol1 = (int)inspectorRect.X + 22;
-            int statCol2 = (int)inspectorRect.X + 270;
+            int statCol2 = (int)inspectorRect.X + 265;
 
             if (item.Definition.Type == WeaponType.Passive)
             {
-                Raylib.DrawText("ORGAN TYPE:", statCol1, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText("PASSIVE MUTATION", statCol1 + 130, statY, 12, new Color(80, 240, 180, 255));
+                if (item.Definition.CritChanceBonus > 0f)
+                {
+                    Raylib.DrawText($"+{(item.Definition.CritChanceBonus * 100f):0}% Critical Strike Chance", statCol1, statY, 13, new Color(80, 240, 140, 255));
+                    statY += 26;
+                }
 
-                Raylib.DrawText("CATEGORY:", statCol2, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText("BIO-AUGMENT", statCol2 + 120, statY, 12, Color.White);
+                if (item.Definition.RangeMultiplierBonus > 0f)
+                {
+                    Raylib.DrawText($"+{(item.Definition.RangeMultiplierBonus * 100f):0}% Attack Range across all mutations", statCol1, statY, 13, new Color(80, 240, 140, 255));
+                    statY += 26;
+                }
 
-                statY += 26;
-                Raylib.DrawText("TRIGGER:", statCol1, statY, 12, new Color(150, 165, 185, 255));
-                string trigger = (item.Definition.Keywords & WeaponKeywords.Stationary) != 0 ? "STAND STILL (>0.5s)" :
-                                 (item.Definition.Keywords & WeaponKeywords.Burst) != 0 ? "EVERY 4s (DASH)" :
-                                 (item.Definition.Keywords & WeaponKeywords.Berserk) != 0 ? "LOW HP SCALING" : "PERMANENT AURA";
-                Raylib.DrawText(trigger, statCol1 + 130, statY, 12, Color.White);
+                if (item.Definition.LongRangeThreshold > 0f)
+                {
+                    Raylib.DrawText($"+{((item.Definition.LongRangeDamageMultiplier - 1f) * 100f):0}% Damage to targets >{item.Definition.LongRangeThreshold:0}px away", statCol1, statY, 13, new Color(80, 240, 140, 255));
+                    statY += 26;
+                }
 
-                Raylib.DrawText("POTENCY:", statCol2, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText($"TIER {item.Tier} ENHANCED", statCol2 + 120, statY, 12, item.RarityColor);
+                if ((item.Definition.Keywords & WeaponKeywords.Berserk) != 0)
+                {
+                    Raylib.DrawText("[Berserk]: Attack Speed scales up to +85% as HP drops", statCol1, statY, 13, new Color(255, 180, 80, 255));
+                    statY += 26;
+                }
 
-                statY += 26;
-                Raylib.DrawText("SLOT TARGET:", statCol1, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText(item.Definition.Slot.ToString().ToUpper(), statCol1 + 130, statY, 12, Color.White);
+                if ((item.Definition.Keywords & WeaponKeywords.Stationary) != 0)
+                {
+                    Raylib.DrawText("[Stationary]: +40% Damage and +4 HP/s while standing still", statCol1, statY, 13, new Color(80, 240, 140, 255));
+                    statY += 26;
+                }
 
-                Raylib.DrawText("ATTACK:", statCol2, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText("NONE (PASSIVE)", statCol2 + 120, statY, 12, new Color(140, 160, 185, 255));
+                if ((item.Definition.Keywords & WeaponKeywords.Burst) != 0)
+                {
+                    Raylib.DrawText("[Burst]: +100% Movement Speed dash every 4 seconds", statCol1, statY, 13, new Color(100, 220, 255, 255));
+                    statY += 26;
+                }
             }
             else
             {
-                Raylib.DrawText("ATTACK TYPE:", statCol1, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText(item.Definition.Type.ToString().ToUpper(), statCol1 + 130, statY, 12, Color.White);
+                Raylib.DrawText("Damage:", statCol1, statY, 13, new Color(150, 165, 185, 255));
+                Raylib.DrawText($"{item.Damage:0.0}", statCol1 + 90, statY, 13, Color.White);
 
-                Raylib.DrawText("DAMAGE:", statCol2, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText($"{item.Damage:0.0}", statCol2 + 120, statY, 12, Color.White);
-
-                statY += 26;
-                Raylib.DrawText("FIRE RATE:", statCol1, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText($"{(1f / MathF.Max(0.01f, item.AttackInterval)):0.00} /s", statCol1 + 130, statY, 12, Color.White);
-
-                Raylib.DrawText("COOLDOWN:", statCol2, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText($"{item.AttackInterval:0.00}s", statCol2 + 120, statY, 12, Color.White);
+                Raylib.DrawText("Cooldown:", statCol2, statY, 13, new Color(150, 165, 185, 255));
+                Raylib.DrawText($"{item.AttackInterval:0.00}s ({(1f / MathF.Max(0.01f, item.AttackInterval)):0.00}/s)", statCol2 + 90, statY, 13, Color.White);
 
                 statY += 26;
-                Raylib.DrawText("RANGE:", statCol1, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText($"{item.Range:0} px", statCol1 + 130, statY, 12, Color.White);
+                Raylib.DrawText("Range:", statCol1, statY, 13, new Color(150, 165, 185, 255));
+                Raylib.DrawText($"{item.Range:0} px", statCol1 + 90, statY, 13, Color.White);
 
-                Raylib.DrawText("KNOCKBACK:", statCol2, statY, 12, new Color(150, 165, 185, 255));
-                Raylib.DrawText($"{item.Definition.Knockback:0}", statCol2 + 120, statY, 12, Color.White);
+                Raylib.DrawText("Knockback:", statCol2, statY, 13, new Color(150, 165, 185, 255));
+                Raylib.DrawText($"{item.Definition.Knockback:0}", statCol2 + 90, statY, 13, Color.White);
+
+                if (item.Definition.PiercingHits > 1)
+                {
+                    statY += 26;
+                    Raylib.DrawText($"Pierces up to {item.Definition.PiercingHits} enemies", statCol1, statY, 13, new Color(120, 220, 255, 255));
+                }
+
+                if (item.Definition.LifestealOnCrit > 0f)
+                {
+                    statY += 26;
+                    Raylib.DrawText($"+{item.Definition.LifestealOnCrit:0} HP Lifesteal on Critical Strike", statCol1, statY, 13, new Color(255, 120, 140, 255));
+                }
+
+                if (item.Definition.ChainTargets > 0)
+                {
+                    statY += 26;
+                    Raylib.DrawText($"Lightning chains to {item.Definition.ChainTargets} targets ({(item.Definition.ChainDamageRatio * 100f):0}% damage)", statCol1, statY, 13, new Color(100, 220, 255, 255));
+                }
             }
 
-            Raylib.DrawLine((int)inspectorRect.X + 22, (int)inspectorRect.Y + 236, (int)inspectorRect.X + (int)inspectorRect.Width - 22, (int)inspectorRect.Y + 236, new Color(36, 48, 68, 180));
-
-            Raylib.DrawText("BIOLOGICAL MECHANISM", (int)inspectorRect.X + 22, (int)inspectorRect.Y + 250, 11, new Color(125, 150, 180, 255));
+            int descDividerY = Math.Max(statY + 14, (int)inspectorRect.Y + 205);
+            Raylib.DrawLine((int)inspectorRect.X + 22, descDividerY, (int)inspectorRect.X + (int)inspectorRect.Width - 22, descDividerY, new Color(36, 48, 68, 180));
 
             string desc = string.IsNullOrEmpty(item.Definition.Description)
                 ? "No biological description available."
                 : item.Definition.Description;
 
-            DrawWrappedText(desc, (int)inspectorRect.X + 22, (int)inspectorRect.Y + 276, 476, 13, 22, new Color(210, 225, 240, 255));
-
-            Raylib.DrawLine((int)inspectorRect.X + 22, (int)inspectorRect.Y + 418, (int)inspectorRect.X + (int)inspectorRect.Width - 22, (int)inspectorRect.Y + 418, new Color(36, 48, 68, 180));
-
-            if (_isInspectedEquipped)
-            {
-                Raylib.DrawText("[CLICK ITEM TO UNEQUIP TO INVENTORY]", (int)inspectorRect.X + 22, (int)inspectorRect.Y + 440, 12, new Color(255, 130, 110, 255));
-            }
-            else
-            {
-                string equipPrompt = $"[CLICK ITEM TO EQUIP TO {item.Definition.Slot.ToString().ToUpper()}]";
-                Raylib.DrawText(equipPrompt, (int)inspectorRect.X + 22, (int)inspectorRect.Y + 440, 12, new Color(75, 235, 160, 255));
-            }
+            DrawWrappedText(desc, (int)inspectorRect.X + 22, descDividerY + 16, 476, 13, 22, new Color(210, 225, 240, 255));
         }
         else
         {
@@ -363,7 +380,10 @@ public sealed class LoadoutScreen
             int epw = Raylib.MeasureText(emptyPrompt, 12);
             Raylib.DrawText(emptyPrompt, (int)inspectorRect.X + ((int)inspectorRect.Width - epw) / 2, (int)inspectorRect.Y + 225, 12, new Color(100, 120, 150, 255));
         }
+    }
 
+    private static void DrawWaveLaunchSection(WaveSystem waveSystem, Vector2 mousePos, bool mouseClicked, Action onStartWave)
+    {
         int targetWave = waveSystem.WaveCompleted ? waveSystem.CurrentWaveNumber + 1 : waveSystem.CurrentWaveNumber;
         Rectangle nextWaveBtn = new(710f, 595f, 520f, 70f);
         bool btnHover = Raylib.CheckCollisionPointRec(mousePos, nextWaveBtn);
@@ -385,6 +405,15 @@ public sealed class LoadoutScreen
             onStartWave();
         }
     }
+
+    private static string ToRoman(int tier) => tier switch
+    {
+        1 => "I",
+        2 => "II",
+        3 => "III",
+        4 => "IV",
+        _ => "I"
+    };
 
     private static void DrawCenteredText(string text, Rectangle rect, int fontSize, Color color)
     {

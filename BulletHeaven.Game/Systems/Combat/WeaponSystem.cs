@@ -6,6 +6,7 @@ using BulletHeaven.ECS.Core;
 using BulletHeaven.ECS.Storage;
 using BulletHeaven.ECS.Systems;
 using BulletHeaven.Game.Components;
+using BulletHeaven.Game.Spatial;
 using BulletHeaven.Game.Weapons;
 using Raylib_cs;
 
@@ -25,6 +26,7 @@ public sealed class WeaponSystem : ISystem
 
     private World? _world;
     private readonly CommandBuffer _cmd;
+    private readonly SpatialGrid? _grid;
     private ComponentStore<PositionComponent>? _positions;
     private ComponentStore<PlayerComponent>? _players;
     private ComponentStore<PlayerStatsComponent>? _stats;
@@ -33,9 +35,10 @@ public sealed class WeaponSystem : ISystem
     private ComponentStore<HealthComponent>? _healths;
     private ComponentStore<VelocityComponent>? _velocities;
 
-    public WeaponSystem(CommandBuffer cmd)
+    public WeaponSystem(CommandBuffer cmd, SpatialGrid? grid = null)
     {
         _cmd = cmd;
+        _grid = grid;
     }
 
     public void Initialize(World world)
@@ -120,9 +123,9 @@ public sealed class WeaponSystem : ISystem
                         bool isCrit = Random.Shared.NextSingle() < critChance;
                         float finalDamage = slot.Weapon.Damage * dmgMult * (isCrit ? critMult : 1f);
 
-                        if (enemyDist > 300f && (slot.Weapon.Definition.Id == "echo_antennae"))
+                        if (slot.Weapon.Definition.LongRangeThreshold > 0f && enemyDist > slot.Weapon.Definition.LongRangeThreshold)
                         {
-                            finalDamage *= 1.5f;
+                            finalDamage *= slot.Weapon.Definition.LongRangeDamageMultiplier;
                         }
 
                         if (slot.Weapon.Definition.Type == WeaponType.Ranged)
@@ -151,6 +154,39 @@ public sealed class WeaponSystem : ISystem
         float maxRangeSq = maxRange * maxRange;
         float bestDistSq = maxRangeSq;
         bool found = false;
+
+        if (_grid != null)
+        {
+            CellRange range = _grid.GetRange(px, py, maxRange);
+            for (int r = range.MinRow; r <= range.MaxRow; r++)
+            {
+                for (int c = range.MinCol; c <= range.MaxCol; c++)
+                {
+                    List<Entity> cell = _grid.GetCell(c, r);
+                    for (int i = 0; i < cell.Count; i++)
+                    {
+                        Entity e = cell[i];
+                        if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
+
+                        ref readonly PositionComponent pos = ref _positions.Get(e);
+                        float dx = pos.X - px;
+                        float dy = pos.Y - py;
+                        float distSq = dx * dx + dy * dy;
+
+                        if (distSq < bestDistSq)
+                        {
+                            bestDistSq = distSq;
+                            closest = e;
+                            targetX = pos.X;
+                            targetY = pos.Y;
+                            found = true;
+                        }
+                    }
+                }
+            }
+            if (found) distance = MathF.Sqrt(bestDistSq);
+            return found;
+        }
 
         foreach (Entity e in _world.Query().With<PositionComponent>().With<EnemyComponent>())
         {
@@ -184,17 +220,8 @@ public sealed class WeaponSystem : ISystem
         float knockback = weapon.Definition.Knockback;
         var color = isCrit ? Color.White : weapon.Definition.Color;
 
-        int hitsLeft = 1;
-        float lifesteal = 0f;
-
-        if ((weapon.Definition.Keywords & WeaponKeywords.Pierce) != 0 || weapon.Definition.Id == "syringe_harpoon")
-        {
-            hitsLeft = 3;
-            if (isCrit)
-            {
-                lifesteal = 3f;
-            }
-        }
+        int hitsLeft = Math.Max(1, weapon.Definition.PiercingHits);
+        float lifesteal = isCrit ? weapon.Definition.LifestealOnCrit : 0f;
 
         _cmd.CreateEntity((world, entity) =>
         {
@@ -211,15 +238,15 @@ public sealed class WeaponSystem : ISystem
 
         float rangeSq = effectiveRange * effectiveRange;
         float halfArc = (weapon.Definition.MeleeArcDegrees * 0.5f) * (MathF.PI / 180f);
-        bool hasChain = (weapon.Definition.Keywords & WeaponKeywords.Chain) != 0 || weapon.Definition.Id == "synaptic_arc_claw";
+        bool hasChain = weapon.Definition.ChainTargets > 0;
 
         Entity hitTarget = default;
         Vector2 hitPos = Vector2.Zero;
         bool hasHitTarget = false;
 
-        foreach (Entity e in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+        void ProcessEnemy(Entity e)
         {
-            if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
+            if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) return;
 
             ref readonly PositionComponent pos = ref _positions.Get(e);
             float dx = pos.X - px;
@@ -261,23 +288,47 @@ public sealed class WeaponSystem : ISystem
             }
         }
 
+        if (_grid != null)
+        {
+            CellRange range = _grid.GetRange(px, py, effectiveRange);
+            for (int r = range.MinRow; r <= range.MaxRow; r++)
+            {
+                for (int c = range.MinCol; c <= range.MaxCol; c++)
+                {
+                    List<Entity> cell = _grid.GetCell(c, r);
+                    for (int i = 0; i < cell.Count; i++)
+                    {
+                        ProcessEnemy(cell[i]);
+                    }
+                }
+            }
+        }
+        else
+        {
+            foreach (Entity e in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+            {
+                ProcessEnemy(e);
+            }
+        }
+
         if (hasChain && hasHitTarget)
         {
-            ExecuteChainLightning(hitTarget, hitPos, damage * 0.6f);
+            ExecuteChainLightning(hitTarget, hitPos, damage * weapon.Definition.ChainDamageRatio, weapon.Definition.ChainRange, weapon.Definition.ChainTargets);
         }
     }
 
-    private void ExecuteChainLightning(Entity sourceEntity, Vector2 origin, float chainDamage)
+    private void ExecuteChainLightning(Entity sourceEntity, Vector2 origin, float chainDamage, float chainRange, int maxTargets)
     {
         if (_world == null || _positions == null || _enemies == null) return;
 
         int chainedCount = 0;
-        float chainRangeSq = 160f * 160f;
+        float chainRangeSq = chainRange * chainRange;
 
-        foreach (Entity other in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+        void ProcessChainCandidate(Entity other)
         {
-            if (other == sourceEntity) continue;
-            if (_healths != null && _healths.Has(other) && _healths.Get(other).IsDead) continue;
+            if (chainedCount >= maxTargets) return;
+            if (other == sourceEntity) return;
+            if (_healths != null && _healths.Has(other) && _healths.Get(other).IsDead) return;
 
             ref readonly PositionComponent otherPos = ref _positions.Get(other);
             float cdx = otherPos.X - origin.X;
@@ -305,7 +356,30 @@ public sealed class WeaponSystem : ISystem
                 });
 
                 chainedCount++;
-                if (chainedCount >= 2) break;
+            }
+        }
+
+        if (_grid != null)
+        {
+            CellRange range = _grid.GetRange(origin.X, origin.Y, chainRange);
+            for (int r = range.MinRow; r <= range.MaxRow && chainedCount < maxTargets; r++)
+            {
+                for (int c = range.MinCol; c <= range.MaxCol && chainedCount < maxTargets; c++)
+                {
+                    List<Entity> cell = _grid.GetCell(c, r);
+                    for (int i = 0; i < cell.Count && chainedCount < maxTargets; i++)
+                    {
+                        ProcessChainCandidate(cell[i]);
+                    }
+                }
+            }
+        }
+        else
+        {
+            foreach (Entity other in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+            {
+                ProcessChainCandidate(other);
+                if (chainedCount >= maxTargets) break;
             }
         }
     }

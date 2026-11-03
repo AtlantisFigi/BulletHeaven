@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using BulletHeaven.ECS;
 using BulletHeaven.ECS.Core;
 using BulletHeaven.ECS.Storage;
 using BulletHeaven.ECS.Systems;
 using BulletHeaven.Game.Components;
+using BulletHeaven.Game.Spatial;
 
 namespace BulletHeaven.Game.Systems.Combat;
 
@@ -11,15 +13,17 @@ public sealed class ProjectileSystem : ISystem
 {
     private World? _world;
     private readonly CommandBuffer _cmd;
+    private readonly SpatialGrid? _grid;
     private ComponentStore<PositionComponent>? _positions;
     private ComponentStore<ProjectileComponent>? _projectiles;
     private ComponentStore<EnemyComponent>? _enemies;
     private ComponentStore<HealthComponent>? _healths;
     private ComponentStore<VelocityComponent>? _velocities;
 
-    public ProjectileSystem(CommandBuffer cmd)
+    public ProjectileSystem(CommandBuffer cmd, SpatialGrid? grid = null)
     {
         _cmd = cmd;
+        _grid = grid;
     }
 
     public void Initialize(World world)
@@ -48,52 +52,117 @@ public sealed class ProjectileSystem : ISystem
             }
 
             ref readonly PositionComponent projPos = ref _positions.Get(projEntity);
+            float hitRadius = proj.Radius + 12f;
+            float hitRadiusSq = hitRadius * hitRadius;
+            bool hitConsumed = false;
 
-            foreach (Entity enemyEntity in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+            if (_grid != null)
             {
-                if (_healths != null && _healths.Has(enemyEntity) && _healths.Get(enemyEntity).IsDead) continue;
-
-                ref readonly PositionComponent enemyPos = ref _positions.Get(enemyEntity);
-                float dx = enemyPos.X - projPos.X;
-                float dy = enemyPos.Y - projPos.Y;
-                float distSq = dx * dx + dy * dy;
-
-                float hitRadius = proj.Radius + 12f;
-                if (distSq <= hitRadius * hitRadius)
+                CellRange range = _grid.GetRange(projPos.X, projPos.Y, hitRadius);
+                for (int r = range.MinRow; r <= range.MaxRow && !hitConsumed; r++)
                 {
-                    if (_healths != null && _healths.Has(enemyEntity))
+                    for (int c = range.MinCol; c <= range.MaxCol && !hitConsumed; c++)
                     {
-                        ref HealthComponent hp = ref _healths.Get(enemyEntity);
-                        hp.Current -= proj.Damage;
-
-                        if (hp.IsDead)
+                        List<Entity> cell = _grid.GetCell(c, r);
+                        for (int i = 0; i < cell.Count; i++)
                         {
-                            _cmd.DestroyEntity(enemyEntity);
+                            Entity enemyEntity = cell[i];
+                            if (_healths != null && _healths.Has(enemyEntity) && _healths.Get(enemyEntity).IsDead) continue;
+
+                            ref readonly PositionComponent enemyPos = ref _positions.Get(enemyEntity);
+                            float dx = enemyPos.X - projPos.X;
+                            float dy = enemyPos.Y - projPos.Y;
+                            float distSq = dx * dx + dy * dy;
+
+                            if (distSq <= hitRadiusSq)
+                            {
+                                if (_healths != null && _healths.Has(enemyEntity))
+                                {
+                                    ref HealthComponent hp = ref _healths.Get(enemyEntity);
+                                    hp.Current -= proj.Damage;
+
+                                    if (hp.IsDead)
+                                    {
+                                        _cmd.DestroyEntity(enemyEntity);
+                                    }
+                                }
+
+                                if (_velocities != null && _velocities.Has(enemyEntity))
+                                {
+                                    float dist = MathF.Sqrt(MathF.Max(0.001f, distSq));
+                                    ref VelocityComponent vel = ref _velocities.Get(enemyEntity);
+                                    vel.X += (dx / dist) * proj.Knockback;
+                                    vel.Y += (dy / dist) * proj.Knockback;
+                                }
+
+                                if (proj.Lifesteal > 0f && proj.SourcePlayer != default && _healths != null && _healths.Has(proj.SourcePlayer))
+                                {
+                                    ref HealthComponent playerHp = ref _healths.Get(proj.SourcePlayer);
+                                    if (!playerHp.IsDead)
+                                    {
+                                        playerHp.Current = MathF.Min(playerHp.Max, playerHp.Current + proj.Lifesteal);
+                                    }
+                                }
+
+                                proj.HitsLeft--;
+                                if (proj.HitsLeft <= 0)
+                                {
+                                    _cmd.DestroyEntity(projEntity);
+                                    hitConsumed = true;
+                                    break;
+                                }
+                            }
                         }
                     }
+                }
+            }
+            else
+            {
+                foreach (Entity enemyEntity in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+                {
+                    if (_healths != null && _healths.Has(enemyEntity) && _healths.Get(enemyEntity).IsDead) continue;
 
-                    if (_velocities != null && _velocities.Has(enemyEntity))
-                    {
-                        float dist = MathF.Sqrt(MathF.Max(0.001f, distSq));
-                        ref VelocityComponent vel = ref _velocities.Get(enemyEntity);
-                        vel.X += (dx / dist) * proj.Knockback;
-                        vel.Y += (dy / dist) * proj.Knockback;
-                    }
+                    ref readonly PositionComponent enemyPos = ref _positions.Get(enemyEntity);
+                    float dx = enemyPos.X - projPos.X;
+                    float dy = enemyPos.Y - projPos.Y;
+                    float distSq = dx * dx + dy * dy;
 
-                    if (proj.Lifesteal > 0f && proj.SourcePlayer != default && _healths != null && _healths.Has(proj.SourcePlayer))
+                    if (distSq <= hitRadiusSq)
                     {
-                        ref HealthComponent playerHp = ref _healths.Get(proj.SourcePlayer);
-                        if (!playerHp.IsDead)
+                        if (_healths != null && _healths.Has(enemyEntity))
                         {
-                            playerHp.Current = MathF.Min(playerHp.Max, playerHp.Current + proj.Lifesteal);
-                        }
-                    }
+                            ref HealthComponent hp = ref _healths.Get(enemyEntity);
+                            hp.Current -= proj.Damage;
 
-                    proj.HitsLeft--;
-                    if (proj.HitsLeft <= 0)
-                    {
-                        _cmd.DestroyEntity(projEntity);
-                        break;
+                            if (hp.IsDead)
+                            {
+                                _cmd.DestroyEntity(enemyEntity);
+                            }
+                        }
+
+                        if (_velocities != null && _velocities.Has(enemyEntity))
+                        {
+                            float dist = MathF.Sqrt(MathF.Max(0.001f, distSq));
+                            ref VelocityComponent vel = ref _velocities.Get(enemyEntity);
+                            vel.X += (dx / dist) * proj.Knockback;
+                            vel.Y += (dy / dist) * proj.Knockback;
+                        }
+
+                        if (proj.Lifesteal > 0f && proj.SourcePlayer != default && _healths != null && _healths.Has(proj.SourcePlayer))
+                        {
+                            ref HealthComponent playerHp = ref _healths.Get(proj.SourcePlayer);
+                            if (!playerHp.IsDead)
+                            {
+                                playerHp.Current = MathF.Min(playerHp.Max, playerHp.Current + proj.Lifesteal);
+                            }
+                        }
+
+                        proj.HitsLeft--;
+                        if (proj.HitsLeft <= 0)
+                        {
+                            _cmd.DestroyEntity(projEntity);
+                            break;
+                        }
                     }
                 }
             }

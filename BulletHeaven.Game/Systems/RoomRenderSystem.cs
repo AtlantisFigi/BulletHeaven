@@ -6,6 +6,7 @@ using BulletHeaven.ECS.Storage;
 using BulletHeaven.Game.Arena;
 using BulletHeaven.Game.Components;
 using BulletHeaven.Game.Components.AI;
+using BulletHeaven.Game.Systems.Combat;
 using BulletHeaven.Game.Weapons;
 using Raylib_cs;
 
@@ -17,6 +18,7 @@ public sealed class RoomRenderSystem
     private readonly WaveSystem _waveSystem;
     private ComponentStore<PositionComponent>? _positions;
     private ComponentStore<PlayerComponent>? _players;
+    private ComponentStore<PlayerStatsComponent>? _stats;
     private ComponentStore<RenderColorComponent>? _colors;
     private ComponentStore<ChargerComponent>? _chargers;
     private ComponentStore<EquipmentComponent>? _equipments;
@@ -27,6 +29,7 @@ public sealed class RoomRenderSystem
         _waveSystem = waveSystem;
         _positions = world.GetStore<PositionComponent>();
         _players = world.GetStore<PlayerComponent>();
+        _stats = world.GetStore<PlayerStatsComponent>();
         _colors = world.GetStore<RenderColorComponent>();
         _chargers = world.GetStore<ChargerComponent>();
         _equipments = world.GetStore<EquipmentComponent>();
@@ -54,6 +57,7 @@ public sealed class RoomRenderSystem
         Raylib.DrawRectangleLinesEx(inner, 1f, ArenaConfig.WallGlowColor);
 
         bool hasPlayers = _players != null;
+        bool hasStats = _stats != null;
         bool hasChargers = _chargers != null;
         bool hasEquipments = _equipments != null;
 
@@ -90,6 +94,19 @@ public sealed class RoomRenderSystem
                     float py = pos.Y + MathF.Sin(player.FacingAngle) * pointerDist;
                     Raylib.DrawCircle((int)px, (int)py, 3f, new Color(255, 220, 80, 255));
 
+                    if (hasStats && _stats!.Has(e))
+                    {
+                        ref readonly PlayerStatsComponent s = ref _stats.Get(e);
+                        if (s.IsStationary)
+                        {
+                            Raylib.DrawCircleLines((int)pos.X, (int)pos.Y, col.Radius + 6f, new Color(130, 255, 160, 180));
+                        }
+                        if (s.IsBursting)
+                        {
+                            Raylib.DrawCircleLines((int)pos.X, (int)pos.Y, col.Radius + 9f, new Color(80, 220, 255, 220));
+                        }
+                    }
+
                     if (hasEquipments && _equipments!.Has(e))
                     {
                         var equip = _equipments.Get(e);
@@ -109,6 +126,15 @@ public sealed class RoomRenderSystem
                     }
                 }
             }
+        }
+
+        for (int i = 0; i < WeaponSystem.ActiveArcs.Count; i++)
+        {
+            var arc = WeaponSystem.ActiveArcs[i];
+            float alphaRatio = Math.Clamp(arc.Timer / MathF.Max(0.001f, arc.MaxTimer), 0f, 1f);
+            int arcAlpha = (int)(255 * alphaRatio);
+            Raylib.DrawLineEx(arc.From, arc.To, 3f, new Color(80, 200, 255, arcAlpha));
+            Raylib.DrawLineEx(arc.From, arc.To, 1.2f, new Color(240, 250, 255, arcAlpha));
         }
 
         Raylib.EndMode2D();

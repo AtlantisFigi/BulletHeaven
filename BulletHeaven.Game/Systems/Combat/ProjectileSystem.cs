@@ -80,6 +80,15 @@ public sealed class ProjectileSystem : ISystem
                         vel.Y += (dy / dist) * proj.Knockback;
                     }
 
+                    if (proj.Lifesteal > 0f && proj.SourcePlayer != default && _healths != null && _healths.Has(proj.SourcePlayer))
+                    {
+                        ref HealthComponent playerHp = ref _healths.Get(proj.SourcePlayer);
+                        if (!playerHp.IsDead)
+                        {
+                            playerHp.Current = MathF.Min(playerHp.Max, playerHp.Current + proj.Lifesteal);
+                        }
+                    }
+
                     proj.HitsLeft--;
                     if (proj.HitsLeft <= 0)
                     {
@@ -91,4 +100,3 @@ public sealed class ProjectileSystem : ISystem
         }
     }
 }
-

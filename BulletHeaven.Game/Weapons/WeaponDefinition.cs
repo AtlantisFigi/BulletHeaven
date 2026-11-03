@@ -6,6 +6,8 @@ public sealed class WeaponDefinition
 {
     public string Id { get; init; } = "";
     public string Name { get; init; } = "";
+    public string Description { get; init; } = "";
+    public EquipSlot Slot { get; init; } = EquipSlot.Hand;
     public WeaponType Type { get; init; }
     public WeaponKeywords Keywords { get; init; }
     public float BaseDamage { get; init; }
@@ -17,4 +19,3 @@ public sealed class WeaponDefinition
     public float MeleeArcDegrees { get; init; } = 110f;
     public Color Color { get; init; } = Color.White;
 }
-

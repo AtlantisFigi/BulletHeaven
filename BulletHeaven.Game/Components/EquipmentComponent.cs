@@ -15,9 +15,18 @@ public sealed class WeaponSlot
 
 public struct EquipmentComponent
 {
+    public static readonly EquipSlot[] SlotTypes =
+    {
+        EquipSlot.Head,
+        EquipSlot.Hand,
+        EquipSlot.Chest,
+        EquipSlot.Hand,
+        EquipSlot.Legs
+    };
+
     public WeaponSlot[] Slots;
 
-    public EquipmentComponent() : this(6)
+    public EquipmentComponent() : this(5)
     {
     }
 
@@ -30,9 +39,15 @@ public struct EquipmentComponent
         }
     }
 
+    public bool CanEquipInSlot(int slotIndex, WeaponItem item)
+    {
+        if (Slots == null || slotIndex < 0 || slotIndex >= Slots.Length || slotIndex >= SlotTypes.Length) return false;
+        return SlotTypes[slotIndex] == item.Definition.Slot;
+    }
+
     public bool Equip(int slotIndex, WeaponItem item)
     {
-        if (Slots == null || slotIndex < 0 || slotIndex >= Slots.Length) return false;
+        if (!CanEquipInSlot(slotIndex, item)) return false;
         Slots[slotIndex].Weapon = item;
         Slots[slotIndex].CooldownTimer = 0f;
         return true;
@@ -46,6 +61,19 @@ public struct EquipmentComponent
         return prev;
     }
 
+    public int FindFirstMatchingEmptySlot(WeaponItem item)
+    {
+        if (Slots == null) return -1;
+        for (int i = 0; i < Slots.Length && i < SlotTypes.Length; i++)
+        {
+            if (Slots[i].Weapon == null && SlotTypes[i] == item.Definition.Slot)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     public int FirstEmptySlotIndex()
     {
         if (Slots == null) return -1;
@@ -56,4 +84,3 @@ public struct EquipmentComponent
         return -1;
     }
 }
-

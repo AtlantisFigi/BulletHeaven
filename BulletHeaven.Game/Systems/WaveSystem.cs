@@ -64,6 +64,13 @@ public sealed class WaveSystem : ISystem
         WaveCompleted = false;
     }
 
+    public void Reset()
+    {
+        StartWave(1);
+        IsWaveRunning = false;
+        WaveCompleted = false;
+    }
+
     public void Update(float deltaTime)
     {
         if (!IsWaveRunning || _world == null) return;

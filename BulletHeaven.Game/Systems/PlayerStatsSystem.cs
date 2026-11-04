@@ -44,6 +44,7 @@ public sealed class PlayerStatsSystem : ISystem
             stats.AttackSpeedMultiplier = 1f;
             stats.HealthRegen = 0f;
             stats.MoveSpeedMultiplier = 1f;
+            stats.DodgeChance = 0f;
 
             if (_velocities != null && _velocities.Has(entity))
             {
@@ -89,6 +90,7 @@ public sealed class PlayerStatsSystem : ISystem
                     stats.AttackSpeedMultiplier += def.AttackSpeedMultiplierBonus;
                     stats.HealthRegen += def.HealthRegenBonus;
                     stats.MoveSpeedMultiplier += def.MoveSpeedMultiplierBonus;
+                    stats.DodgeChance += def.DodgeChanceBonus;
 
                     if ((def.Keywords & WeaponKeywords.Berserk) != 0)
                     {
@@ -106,6 +108,8 @@ public sealed class PlayerStatsSystem : ISystem
                     }
                 }
             }
+
+            stats.DodgeChance = Math.Clamp(stats.DodgeChance, 0f, 0.60f);
 
             if (hasBerserk && _healths != null && _healths.Has(entity))
             {
@@ -163,4 +167,3 @@ public sealed class PlayerStatsSystem : ISystem
         }
     }
 }
-

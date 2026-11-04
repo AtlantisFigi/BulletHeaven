@@ -26,6 +26,7 @@ public sealed class WeaponDefinition
     public float AttackSpeedMultiplierBonus { get; init; }
     public float HealthRegenBonus { get; init; }
     public float MoveSpeedMultiplierBonus { get; init; }
+    public float DodgeChanceBonus { get; init; }
 
     public int PiercingHits { get; init; } = 1;
     public float LifestealOnCrit { get; init; }

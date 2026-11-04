@@ -4,7 +4,7 @@ namespace BulletHeaven.Game.Arena;
 
 public static class ArenaConfig
 {
-    public static readonly Rectangle Bounds = new(0f, 0f, 2200f, 1400f);
+    public static readonly Rectangle Bounds = new(0f, 0f, 1500f, 1100f);
     public const float WallThickness = 8f;
 
     public static readonly Color FloorColor = new(20, 22, 30, 255);

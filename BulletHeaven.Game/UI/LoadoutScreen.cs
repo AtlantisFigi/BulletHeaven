@@ -131,7 +131,7 @@ public sealed class LoadoutScreen
 
     private static void DrawOperatorVitals(ref PlayerComponent player, Entity playerEntity, ref EquipmentComponent equip, ComponentStore<HealthComponent>? healthStore, ComponentStore<PlayerStatsComponent>? statsStore)
     {
-        Rectangle vitalsRect = new(50f, 470f, 214f, 165f);
+        Rectangle vitalsRect = new(50f, 470f, 214f, 175f);
         Raylib.DrawRectangleRec(vitalsRect, new Color(13, 16, 24, 255));
         Raylib.DrawRectangleLinesEx(vitalsRect, 1.5f, new Color(36, 48, 68, 200));
 
@@ -152,27 +152,32 @@ public sealed class LoadoutScreen
 
         float critVal = 5f;
         float rangeMod = 0f;
+        float dodgeVal = 0f;
         if (statsStore != null && statsStore.Has(playerEntity))
         {
             var s = statsStore.Get(playerEntity);
             critVal = s.CritChance * 100f;
             rangeMod = (s.RangeMultiplier - 1f) * 100f;
+            dodgeVal = s.DodgeChance * 100f;
         }
 
-        Raylib.DrawText("HEALTH:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 38, 11, new Color(150, 165, 185, 255));
-        Raylib.DrawText(hpText, (int)vitalsRect.X + 120, (int)vitalsRect.Y + 38, 11, Color.White);
+        Raylib.DrawText("HEALTH:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 36, 11, new Color(150, 165, 185, 255));
+        Raylib.DrawText(hpText, (int)vitalsRect.X + 120, (int)vitalsRect.Y + 36, 11, Color.White);
 
-        Raylib.DrawText("MOVE SPEED:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 62, 11, new Color(150, 165, 185, 255));
-        Raylib.DrawText($"{player.Speed:0} px/s", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 62, 11, Color.White);
+        Raylib.DrawText("MOVE SPEED:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 58, 11, new Color(150, 165, 185, 255));
+        Raylib.DrawText($"{player.Speed:0} px/s", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 58, 11, Color.White);
 
-        Raylib.DrawText("CRIT CHANCE:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 86, 11, new Color(150, 165, 185, 255));
-        Raylib.DrawText($"{critVal:0}%", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 86, 11, new Color(255, 205, 80, 255));
+        Raylib.DrawText("CRIT CHANCE:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 80, 11, new Color(150, 165, 185, 255));
+        Raylib.DrawText($"{critVal:0}%", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 80, 11, new Color(255, 205, 80, 255));
 
-        Raylib.DrawText("RANGE MOD:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 110, 11, new Color(150, 165, 185, 255));
-        Raylib.DrawText($"+{rangeMod:0}%", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 110, 11, new Color(120, 210, 255, 255));
+        Raylib.DrawText("DODGE CHANCE:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 102, 11, new Color(150, 165, 185, 255));
+        Raylib.DrawText($"{dodgeVal:0}%", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 102, 11, new Color(90, 225, 235, 255));
 
-        Raylib.DrawText("EQUIPPED:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 134, 11, new Color(150, 165, 185, 255));
-        Raylib.DrawText($"{equippedCount} / 5", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 134, 11, new Color(80, 240, 180, 255));
+        Raylib.DrawText("RANGE MOD:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 124, 11, new Color(150, 165, 185, 255));
+        Raylib.DrawText($"+{rangeMod:0}%", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 124, 11, new Color(120, 210, 255, 255));
+
+        Raylib.DrawText("EQUIPPED:", (int)vitalsRect.X + 14, (int)vitalsRect.Y + 146, 11, new Color(150, 165, 185, 255));
+        Raylib.DrawText($"{equippedCount} / 5", (int)vitalsRect.X + 120, (int)vitalsRect.Y + 146, 11, new Color(80, 240, 180, 255));
     }
 
     private void DrawPaperdollSection(ref EquipmentComponent equip, ref BioStashComponent stash, Vector2 mousePos, bool mouseClicked, WeaponItem? hoveredInventoryItem)

@@ -9,6 +9,7 @@ public struct PlayerStatsComponent
     public float AttackSpeedMultiplier;
     public float HealthRegen;
     public float MoveSpeedMultiplier;
+    public float DodgeChance;
     public float StationaryTimer;
     public bool IsStationary;
     public float BurstTimer;
@@ -24,6 +25,7 @@ public struct PlayerStatsComponent
         AttackSpeedMultiplier = 1f;
         HealthRegen = 0f;
         MoveSpeedMultiplier = 1f;
+        DodgeChance = 0f;
         StationaryTimer = 0f;
         IsStationary = false;
         BurstTimer = 0f;
@@ -31,4 +33,3 @@ public struct PlayerStatsComponent
         IsBursting = false;
     }
 }
-

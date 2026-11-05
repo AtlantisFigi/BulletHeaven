@@ -14,6 +14,7 @@ public sealed class PlayerStatsSystem : ISystem
     private ComponentStore<PlayerComponent>? _players;
     private ComponentStore<PlayerStatsComponent>? _stats;
     private ComponentStore<EquipmentComponent>? _equipments;
+    private ComponentStore<BioInventoryComponent>? _inventories;
     private ComponentStore<HealthComponent>? _healths;
     private ComponentStore<VelocityComponent>? _velocities;
 
@@ -23,6 +24,7 @@ public sealed class PlayerStatsSystem : ISystem
         _players = world.GetStore<PlayerComponent>();
         _stats = world.GetStore<PlayerStatsComponent>();
         _equipments = world.GetStore<EquipmentComponent>();
+        _inventories = world.GetStore<BioInventoryComponent>();
         _healths = world.GetStore<HealthComponent>();
         _velocities = world.GetStore<VelocityComponent>();
     }
@@ -80,31 +82,20 @@ public sealed class PlayerStatsSystem : ISystem
                 {
                     var weapon = equip.Slots[i].Weapon;
                     if (weapon == null) continue;
+                    ApplyDef(ref stats, weapon.Definition, ref hasBerserk, ref hasRootedSpikes, ref hasBurstBoots);
+                }
+            }
 
-                    var def = weapon.Definition;
-
-                    stats.CritChance += def.CritChanceBonus;
-                    stats.CritMultiplier += def.CritMultiplierBonus;
-                    stats.RangeMultiplier += def.RangeMultiplierBonus;
-                    stats.DamageMultiplier += def.DamageMultiplierBonus;
-                    stats.AttackSpeedMultiplier += def.AttackSpeedMultiplierBonus;
-                    stats.HealthRegen += def.HealthRegenBonus;
-                    stats.MoveSpeedMultiplier += def.MoveSpeedMultiplierBonus;
-                    stats.DodgeChance += def.DodgeChanceBonus;
-
-                    if ((def.Keywords & WeaponKeywords.Berserk) != 0)
+            if (_inventories != null && _inventories.Has(entity))
+            {
+                ref readonly BioInventoryComponent inv = ref _inventories.Get(entity);
+                if (inv.Items != null)
+                {
+                    for (int i = 0; i < inv.Items.Count; i++)
                     {
-                        hasBerserk = true;
-                    }
-
-                    if ((def.Keywords & WeaponKeywords.Stationary) != 0)
-                    {
-                        hasRootedSpikes = true;
-                    }
-
-                    if ((def.Keywords & WeaponKeywords.Burst) != 0)
-                    {
-                        hasBurstBoots = true;
+                        var item = inv.Items[i];
+                        if (item == null) continue;
+                        ApplyDef(ref stats, item.Definition, ref hasBerserk, ref hasRootedSpikes, ref hasBurstBoots);
                     }
                 }
             }
@@ -129,7 +120,8 @@ public sealed class PlayerStatsSystem : ISystem
                 if (stats.IsBursting)
                 {
                     stats.BurstActiveTimer -= deltaTime;
-                    stats.MoveSpeedMultiplier = 2.0f;
+                    stats.MoveSpeedMultiplier *= 2.0f;
+
                     if (stats.BurstActiveTimer <= 0f)
                     {
                         stats.IsBursting = false;
@@ -142,8 +134,7 @@ public sealed class PlayerStatsSystem : ISystem
                     if (stats.BurstTimer <= 0f)
                     {
                         stats.IsBursting = true;
-                        stats.BurstActiveTimer = 0.4f;
-                        stats.MoveSpeedMultiplier = 2.0f;
+                        stats.BurstActiveTimer = 0.40f;
                     }
                 }
             }
@@ -154,16 +145,32 @@ public sealed class PlayerStatsSystem : ISystem
                 stats.BurstActiveTimer = 0f;
             }
 
+            player.Speed = 280f * stats.MoveSpeedMultiplier;
+
             if (stats.HealthRegen > 0f && _healths != null && _healths.Has(entity))
             {
                 ref HealthComponent hp = ref _healths.Get(entity);
-                if (!hp.IsDead)
+                if (!hp.IsDead && hp.Current < hp.Max)
                 {
                     hp.Current = MathF.Min(hp.Max, hp.Current + stats.HealthRegen * deltaTime);
                 }
             }
-
-            player.Speed = 280f * stats.MoveSpeedMultiplier;
         }
+    }
+
+    private static void ApplyDef(ref PlayerStatsComponent stats, WeaponDefinition def, ref bool hasBerserk, ref bool hasRootedSpikes, ref bool hasBurstBoots)
+    {
+        stats.CritChance += def.CritChanceBonus;
+        stats.CritMultiplier += def.CritMultiplierBonus;
+        stats.RangeMultiplier += def.RangeMultiplierBonus;
+        stats.DamageMultiplier += def.DamageMultiplierBonus;
+        stats.AttackSpeedMultiplier += def.AttackSpeedMultiplierBonus;
+        stats.HealthRegen += def.HealthRegenBonus;
+        stats.MoveSpeedMultiplier += def.MoveSpeedMultiplierBonus;
+        stats.DodgeChance += def.DodgeChanceBonus;
+
+        if ((def.Keywords & WeaponKeywords.Berserk) != 0) hasBerserk = true;
+        if ((def.Keywords & WeaponKeywords.Stationary) != 0) hasRootedSpikes = true;
+        if ((def.Keywords & WeaponKeywords.Burst) != 0) hasBurstBoots = true;
     }
 }

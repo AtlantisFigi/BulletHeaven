@@ -6,6 +6,7 @@ public struct PlayerComponent
     public float FacingAngle;
     public float InvulnerabilityTimer;
     public float FlashTimer;
+    public int Biomass;
 
     public bool IsInvulnerable => InvulnerabilityTimer > 0f;
 
@@ -15,5 +16,6 @@ public struct PlayerComponent
         FacingAngle = 0f;
         InvulnerabilityTimer = 0f;
         FlashTimer = 0f;
+        Biomass = 50;
     }
 }

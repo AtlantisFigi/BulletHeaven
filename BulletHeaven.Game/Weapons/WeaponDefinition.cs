@@ -19,6 +19,10 @@ public sealed class WeaponDefinition
     public float MeleeArcDegrees { get; init; } = 110f;
     public Color Color { get; init; } = Color.White;
 
+    public int ProjectileCount { get; init; } = 1;
+    public float SpreadDegrees { get; init; } = 0f;
+    public float Lifesteal { get; init; } = 0f;
+
     public float CritChanceBonus { get; init; }
     public float CritMultiplierBonus { get; init; }
     public float RangeMultiplierBonus { get; init; }
@@ -35,4 +39,43 @@ public sealed class WeaponDefinition
     public float ChainDamageRatio { get; init; }
     public float LongRangeThreshold { get; init; }
     public float LongRangeDamageMultiplier { get; init; } = 1f;
+
+    public WeaponDefinition Clone(string? newId = null)
+    {
+        return new WeaponDefinition
+        {
+            Id = newId ?? Id,
+            Name = Name,
+            Description = Description,
+            Slot = Slot,
+            Type = Type,
+            Keywords = Keywords,
+            BaseDamage = BaseDamage,
+            AttackInterval = AttackInterval,
+            Range = Range,
+            ProjectileSpeed = ProjectileSpeed,
+            ProjectileRadius = ProjectileRadius,
+            Knockback = Knockback,
+            MeleeArcDegrees = MeleeArcDegrees,
+            Color = Color,
+            ProjectileCount = ProjectileCount,
+            SpreadDegrees = SpreadDegrees,
+            Lifesteal = Lifesteal,
+            CritChanceBonus = CritChanceBonus,
+            CritMultiplierBonus = CritMultiplierBonus,
+            RangeMultiplierBonus = RangeMultiplierBonus,
+            DamageMultiplierBonus = DamageMultiplierBonus,
+            AttackSpeedMultiplierBonus = AttackSpeedMultiplierBonus,
+            HealthRegenBonus = HealthRegenBonus,
+            MoveSpeedMultiplierBonus = MoveSpeedMultiplierBonus,
+            DodgeChanceBonus = DodgeChanceBonus,
+            PiercingHits = PiercingHits,
+            LifestealOnCrit = LifestealOnCrit,
+            ChainTargets = ChainTargets,
+            ChainRange = ChainRange,
+            ChainDamageRatio = ChainDamageRatio,
+            LongRangeThreshold = LongRangeThreshold,
+            LongRangeDamageMultiplier = LongRangeDamageMultiplier
+        };
+    }
 }

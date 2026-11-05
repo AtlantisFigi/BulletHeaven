@@ -213,23 +213,36 @@ public sealed class WeaponSystem : ISystem
 
     private void ExecuteRangedAttack(float px, float py, float angle, WeaponItem weapon, float damage, bool isCrit, Entity playerEntity)
     {
+        int count = Math.Max(1, weapon.Definition.ProjectileCount);
+        float spreadDeg = weapon.Definition.SpreadDegrees;
         float speed = weapon.Definition.ProjectileSpeed;
-        float vx = MathF.Cos(angle) * speed;
-        float vy = MathF.Sin(angle) * speed;
         float radius = weapon.Definition.ProjectileRadius * (isCrit ? 1.3f : 1f);
         float knockback = weapon.Definition.Knockback;
         var color = isCrit ? Color.White : weapon.Definition.Color;
-
         int hitsLeft = Math.Max(1, weapon.Definition.PiercingHits);
-        float lifesteal = isCrit ? weapon.Definition.LifestealOnCrit : 0f;
+        float lifesteal = weapon.Definition.Lifesteal + (isCrit ? weapon.Definition.LifestealOnCrit : 0f);
 
-        _cmd.CreateEntity((world, entity) =>
+        for (int p = 0; p < count; p++)
         {
-            world.AddComponent(entity, new PositionComponent(px, py));
-            world.AddComponent(entity, new VelocityComponent(vx, vy));
-            world.AddComponent(entity, new ProjectileComponent(damage, 2.5f, radius, knockback, hitsLeft, isCrit, lifesteal, playerEntity));
-            world.AddComponent(entity, new RenderColorComponent(color.R, color.G, color.B, color.A, radius));
-        });
+            float projAngle = angle;
+            if (count > 1)
+            {
+                float startOffset = -spreadDeg * 0.5f;
+                float step = spreadDeg / (count - 1);
+                projAngle = angle + (startOffset + step * p) * (MathF.PI / 180f);
+            }
+
+            float vx = MathF.Cos(projAngle) * speed;
+            float vy = MathF.Sin(projAngle) * speed;
+
+            _cmd.CreateEntity((world, entity) =>
+            {
+                world.AddComponent(entity, new PositionComponent(px, py));
+                world.AddComponent(entity, new VelocityComponent(vx, vy));
+                world.AddComponent(entity, new ProjectileComponent(damage, 2.5f, radius, knockback, hitsLeft, isCrit, lifesteal, playerEntity));
+                world.AddComponent(entity, new RenderColorComponent(color.R, color.G, color.B, color.A, radius));
+            });
+        }
     }
 
     private void ExecuteMeleeAttack(float px, float py, float centerAngle, WeaponItem weapon, float damage, bool isCrit, Entity playerEntity, float effectiveRange)
@@ -239,6 +252,7 @@ public sealed class WeaponSystem : ISystem
         float rangeSq = effectiveRange * effectiveRange;
         float halfArc = (weapon.Definition.MeleeArcDegrees * 0.5f) * (MathF.PI / 180f);
         bool hasChain = weapon.Definition.ChainTargets > 0;
+        float meleeLifesteal = weapon.Definition.Lifesteal + (isCrit ? weapon.Definition.LifestealOnCrit : 0f);
 
         Entity hitTarget = default;
         Vector2 hitPos = Vector2.Zero;
@@ -276,6 +290,15 @@ public sealed class WeaponSystem : ISystem
                         ref VelocityComponent vel = ref _velocities.Get(e);
                         vel.X += MathF.Cos(angleToEnemy) * weapon.Definition.Knockback;
                         vel.Y += MathF.Sin(angleToEnemy) * weapon.Definition.Knockback;
+                    }
+
+                    if (meleeLifesteal > 0f && playerEntity != default && _healths != null && _healths.Has(playerEntity))
+                    {
+                        ref HealthComponent playerHp = ref _healths.Get(playerEntity);
+                        if (!playerHp.IsDead)
+                        {
+                            playerHp.Current = MathF.Min(playerHp.Max, playerHp.Current + meleeLifesteal);
+                        }
                     }
 
                     if (!hasHitTarget)

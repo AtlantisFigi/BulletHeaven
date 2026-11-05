@@ -86,6 +86,16 @@ public sealed class WaveSystem : ISystem
                 _cmd.DestroyEntity(e);
             }
 
+            var playerStore = _world.GetStore<PlayerComponent>();
+            if (playerStore != null)
+            {
+                foreach (Entity p in _world.Query().With<PlayerComponent>())
+                {
+                    ref PlayerComponent pc = ref playerStore.Get(p);
+                    pc.Biomass += 35 + _currentWave.WaveNumber * 15;
+                }
+            }
+
             IsWaveRunning = false;
             WaveCompleted = true;
             return;

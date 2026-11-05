@@ -94,6 +94,7 @@ public static class Program
         var settingsMenu = new SettingsMenu();
 
         SpawnPlayer(world);
+        playerStatsSystem.Update(0f);
 
         var positions = world.GetStore<PositionComponent>();
         var healths = world.GetStore<HealthComponent>();
@@ -181,6 +182,7 @@ public static class Program
             }
             else if (state == GameState.Intermission)
             {
+                playerStatsSystem.Update(0f);
                 roomRenderer.Draw(cameraService.Camera);
 
                 loadoutScreen.Draw(world, waveSystem, virtualMouse, () =>
@@ -316,6 +318,7 @@ public static class Program
                 ref PlayerComponent pc = ref playerStore.Get(p);
                 pc.InvulnerabilityTimer = 0f;
                 pc.FlashTimer = 0f;
+                pc.Biomass = 50;
             }
         }
 
@@ -332,35 +335,13 @@ public static class Program
         world.AddComponent(player, new PlayerStatsComponent());
         world.AddComponent(player, new RenderColorComponent(60, 200, 190, 255, 16f));
 
-        var equipment = new EquipmentComponent(5);
+        var equipment = new EquipmentComponent(6);
         var bioDart = WeaponDatabase.CreateItem("bio_dart", tier: 1);
-        if (bioDart != null) equipment.Equip(1, bioDart);
-
-        var boneBlade = WeaponDatabase.CreateItem("bone_blade", tier: 1);
-        if (boneBlade != null) equipment.Equip(3, boneBlade);
+        if (bioDart != null) equipment.Equip(0, bioDart);
 
         world.AddComponent(player, equipment);
 
-        var stash = new BioStashComponent(6);
-
-        var eye = WeaponDatabase.CreateItem("trepanned_eye", tier: 1);
-        if (eye != null) stash.Add(eye);
-
-        var chest = WeaponDatabase.CreateItem("adrenaline_overcharger", tier: 1);
-        if (chest != null) stash.Add(chest);
-
-        var claw = WeaponDatabase.CreateItem("synaptic_arc_claw", tier: 1);
-        if (claw != null) stash.Add(claw);
-
-        var spikes = WeaponDatabase.CreateItem("rooted_osteo_spikes", tier: 1);
-        if (spikes != null) stash.Add(spikes);
-
-        var boots = WeaponDatabase.CreateItem("piston_burst_boots", tier: 1);
-        if (boots != null) stash.Add(boots);
-
-        var harpoon = WeaponDatabase.CreateItem("syringe_harpoon", tier: 1);
-        if (harpoon != null) stash.Add(harpoon);
-
-        world.AddComponent(player, stash);
+        var inventory = new BioInventoryComponent();
+        world.AddComponent(player, inventory);
     }
 }

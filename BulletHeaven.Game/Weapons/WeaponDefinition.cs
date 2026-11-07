@@ -7,7 +7,6 @@ public sealed class WeaponDefinition
     public string Id { get; init; } = "";
     public string Name { get; init; } = "";
     public string Description { get; init; } = "";
-    public EquipSlot Slot { get; init; } = EquipSlot.Hand;
     public WeaponType Type { get; init; }
     public WeaponKeywords Keywords { get; init; }
     public float BaseDamage { get; init; }
@@ -23,6 +22,8 @@ public sealed class WeaponDefinition
     public float SpreadDegrees { get; init; } = 0f;
     public float Lifesteal { get; init; } = 0f;
 
+    public float MaxHpBonus { get; init; }
+    public float ArmorBonus { get; init; }
     public float CritChanceBonus { get; init; }
     public float CritMultiplierBonus { get; init; }
     public float RangeMultiplierBonus { get; init; }
@@ -47,7 +48,6 @@ public sealed class WeaponDefinition
             Id = newId ?? Id,
             Name = Name,
             Description = Description,
-            Slot = Slot,
             Type = Type,
             Keywords = Keywords,
             BaseDamage = BaseDamage,
@@ -61,6 +61,8 @@ public sealed class WeaponDefinition
             ProjectileCount = ProjectileCount,
             SpreadDegrees = SpreadDegrees,
             Lifesteal = Lifesteal,
+            MaxHpBonus = MaxHpBonus,
+            ArmorBonus = ArmorBonus,
             CritChanceBonus = CritChanceBonus,
             CritMultiplierBonus = CritMultiplierBonus,
             RangeMultiplierBonus = RangeMultiplierBonus,

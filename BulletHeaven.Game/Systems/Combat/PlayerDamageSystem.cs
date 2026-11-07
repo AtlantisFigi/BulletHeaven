@@ -22,7 +22,6 @@ public sealed class PlayerDamageSystem : ISystem
 
     private readonly SpatialGrid _grid;
     private readonly DamageTextService _damageTexts;
-    private readonly Random _rng = new(42);
 
     public PlayerDamageSystem(SpatialGrid grid, DamageTextService damageTexts)
     {
@@ -102,12 +101,15 @@ public sealed class PlayerDamageSystem : ISystem
                         if (distSq <= hitDist * hitDist)
                         {
                             float dodgeChance = 0f;
+                            float armor = 0f;
                             if (_stats != null && _stats.Has(playerEntity))
                             {
-                                dodgeChance = _stats.Get(playerEntity).DodgeChance;
+                                ref readonly PlayerStatsComponent s = ref _stats.Get(playerEntity);
+                                dodgeChance = s.DodgeChance;
+                                armor = s.Armor;
                             }
 
-                            bool dodged = dodgeChance > 0f && (_rng.NextDouble() < dodgeChance);
+                            bool dodged = dodgeChance > 0f && (Random.Shared.NextDouble() < dodgeChance);
                             if (dodged)
                             {
                                 player.InvulnerabilityTimer = 0.20f;
@@ -116,7 +118,9 @@ public sealed class PlayerDamageSystem : ISystem
                                 break;
                             }
 
-                            float damage = enemy.ContactDamage;
+                            float reduction = 100f / (100f + MathF.Max(0f, armor));
+                            float damage = MathF.Max(1f, enemy.ContactDamage * reduction);
+
                             health.Current = MathF.Max(0f, health.Current - damage);
 
                             float maxHp = MathF.Max(1f, health.Max);
@@ -139,7 +143,7 @@ public sealed class PlayerDamageSystem : ISystem
                             player.InvulnerabilityTimer = iframeDuration;
                             player.FlashTimer = 0.12f;
 
-                            _damageTexts.Spawn(pos.X, pos.Y - playerRadius - 8f, $"-{(int)damage}", new Color(255, 70, 70, 255));
+                            _damageTexts.Spawn(pos.X, pos.Y - playerRadius - 8f, $"-{(int)MathF.Round(damage)}", new Color(255, 70, 70, 255));
                             tookHit = true;
                             break;
                         }

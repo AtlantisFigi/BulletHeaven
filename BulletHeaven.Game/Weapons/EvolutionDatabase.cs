@@ -27,7 +27,6 @@ public static class EvolutionDatabase
                 Id = defA.Id,
                 Name = $"Calcified Flak Spitter {ToRoman(nextTier)}",
                 Description = "Twin piercing bone darts with heavy stopping power.",
-                Slot = EquipSlot.Hand,
                 Type = WeaponType.Ranged,
                 Keywords = WeaponKeywords.Bio | WeaponKeywords.Heavy | WeaponKeywords.Pierce,
                 BaseDamage = item.Definition.BaseDamage * 1.8f,
@@ -56,7 +55,6 @@ public static class EvolutionDatabase
                 Id = $"bio_dart_venom_t{nextTier}",
                 Name = $"Neuro-Venom Needler {ToRoman(nextTier)}",
                 Description = "Floods needles with neurotoxins for rapid fire and life-draining punctures.",
-                Slot = EquipSlot.Hand,
                 Type = WeaponType.Ranged,
                 Keywords = WeaponKeywords.Bio | WeaponKeywords.Rapid,
                 BaseDamage = item.Definition.BaseDamage * 1.4f,
@@ -89,7 +87,6 @@ public static class EvolutionDatabase
                 Id = $"bone_blade_cleaver_t{nextTier}",
                 Name = $"Colossal Osteo-Cleaver {ToRoman(nextTier)}",
                 Description = "Elongates into a massive ulna blade that decimates horde fronts.",
-                Slot = EquipSlot.Hand,
                 Type = WeaponType.Melee,
                 Keywords = WeaponKeywords.Bio | WeaponKeywords.Blade | WeaponKeywords.Heavy,
                 BaseDamage = item.Definition.BaseDamage * 1.9f,
@@ -114,7 +111,6 @@ public static class EvolutionDatabase
                 Id = $"bone_blade_whip_t{nextTier}",
                 Name = $"Serrated Spine-Whip {ToRoman(nextTier)}",
                 Description = "Articulates into a flexible vertebral chain delivering surgical critical strikes.",
-                Slot = EquipSlot.Hand,
                 Type = WeaponType.Melee,
                 Keywords = WeaponKeywords.Bio | WeaponKeywords.Blade | WeaponKeywords.Crit,
                 BaseDamage = item.Definition.BaseDamage * 1.35f,
@@ -146,7 +142,6 @@ public static class EvolutionDatabase
                 Id = $"syringe_plague_t{nextTier}",
                 Name = $"Plague Cannula {ToRoman(nextTier)}",
                 Description = "Infects cannula with necrotic microbes siphoning vitality on crits.",
-                Slot = EquipSlot.Hand,
                 Type = WeaponType.Ranged,
                 Keywords = WeaponKeywords.Bio | WeaponKeywords.Pierce,
                 BaseDamage = item.Definition.BaseDamage * 1.7f,
@@ -175,7 +170,6 @@ public static class EvolutionDatabase
                 Id = $"syringe_taser_t{nextTier}",
                 Name = $"Neuro-Taser Cannula {ToRoman(nextTier)}",
                 Description = "Charged clinical cannula that discharges chain lightning across pierced victims.",
-                Slot = EquipSlot.Hand,
                 Type = WeaponType.Ranged,
                 Keywords = WeaponKeywords.Bio | WeaponKeywords.Chain,
                 BaseDamage = item.Definition.BaseDamage * 1.4f,
@@ -208,7 +202,6 @@ public static class EvolutionDatabase
             Id = $"{baseId}_apex_t{nextTier}",
             Name = $"{item.Definition.Name} [Apex] {ToRoman(nextTier)}",
             Description = "Reinforces muscular actuators for maximized kinetic impact.",
-            Slot = item.Definition.Slot,
             Type = item.Definition.Type,
             Keywords = item.Definition.Keywords | WeaponKeywords.Heavy,
             BaseDamage = item.Definition.BaseDamage * 1.6f,
@@ -234,7 +227,6 @@ public static class EvolutionDatabase
             Id = $"{baseId}_synaptic_t{nextTier}",
             Name = $"{item.Definition.Name} [Synaptic] {ToRoman(nextTier)}",
             Description = "Optimizes neural pathways for rapid reflexive discharges.",
-            Slot = item.Definition.Slot,
             Type = item.Definition.Type,
             Keywords = item.Definition.Keywords | WeaponKeywords.Rapid,
             BaseDamage = item.Definition.BaseDamage * 1.25f,
@@ -269,4 +261,3 @@ public static class EvolutionDatabase
         };
     }
 }
-

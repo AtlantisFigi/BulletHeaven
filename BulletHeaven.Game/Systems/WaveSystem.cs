@@ -14,7 +14,6 @@ public sealed class WaveSystem : ISystem
     private World? _world;
     private readonly CommandBuffer _cmd;
     private ComponentStore<EnemyComponent>? _enemies;
-    private readonly Random _rng = new(1337);
 
     private WaveDefinition _currentWave;
     private float _waveTimer;
@@ -106,13 +105,13 @@ public sealed class WaveSystem : ISystem
         if (_spawnCooldown <= 0f && _activeEnemies < _currentWave.MaxActiveEnemies)
         {
             _spawnCooldown = _currentWave.SpawnInterval;
-            int batch = _rng.Next(_currentWave.BatchMin, _currentWave.BatchMax + 1);
+            int batch = Random.Shared.Next(_currentWave.BatchMin, _currentWave.BatchMax + 1);
 
             for (int i = 0; i < batch; i++)
             {
                 if (_activeEnemies >= _currentWave.MaxActiveEnemies) break;
 
-                EnemyType type = _currentWave.SelectRandomEnemy(_rng);
+                EnemyType type = _currentWave.SelectRandomEnemy(Random.Shared);
                 GetPerimeterSpawnPos(out float x, out float y);
 
                 EnemySpawner.Spawn(_world, type, x, y);
@@ -121,9 +120,9 @@ public sealed class WaveSystem : ISystem
         }
     }
 
-    private void GetPerimeterSpawnPos(out float x, out float y)
+    private static void GetPerimeterSpawnPos(out float x, out float y)
     {
-        int side = _rng.Next(4);
+        int side = Random.Shared.Next(4);
         float minX = ArenaConfig.Bounds.X + 20f;
         float maxX = ArenaConfig.Bounds.X + ArenaConfig.Bounds.Width - 20f;
         float minY = ArenaConfig.Bounds.Y + 20f;
@@ -132,20 +131,20 @@ public sealed class WaveSystem : ISystem
         switch (side)
         {
             case 0:
-                x = minX + (float)_rng.NextDouble() * (maxX - minX);
+                x = minX + (float)Random.Shared.NextDouble() * (maxX - minX);
                 y = minY;
                 break;
             case 1:
-                x = minX + (float)_rng.NextDouble() * (maxX - minX);
+                x = minX + (float)Random.Shared.NextDouble() * (maxX - minX);
                 y = maxY;
                 break;
             case 2:
                 x = minX;
-                y = minY + (float)_rng.NextDouble() * (maxY - minY);
+                y = minY + (float)Random.Shared.NextDouble() * (maxY - minY);
                 break;
             default:
                 x = maxX;
-                y = minY + (float)_rng.NextDouble() * (maxY - minY);
+                y = minY + (float)Random.Shared.NextDouble() * (maxY - minY);
                 break;
         }
     }

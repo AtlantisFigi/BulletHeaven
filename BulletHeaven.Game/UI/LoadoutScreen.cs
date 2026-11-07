@@ -165,6 +165,7 @@ public sealed class LoadoutScreen
         float regen = 0f;
         float dodge = 0f;
         float speed = 1.0f;
+        float armor = 0f;
 
         if (statsStore != null && statsStore.Has(playerEntity))
         {
@@ -177,8 +178,10 @@ public sealed class LoadoutScreen
             regen = s.HealthRegen;
             dodge = s.DodgeChance;
             speed = s.MoveSpeedMultiplier;
+            armor = s.Armor;
         }
 
+        DrawStatRow("ARMOR", $"{armor:0}", armor > 0f, px + 16, sy, barW); sy += rowH;
         DrawStatRow("HP REGEN", $"+{regen:0.0} /s", regen > 0f, px + 16, sy, barW); sy += rowH;
         DrawStatRow("% DAMAGE", $"{dmg * 100f - 100f:+0;-0;+0}%", dmg > 1.0f, px + 16, sy, barW); sy += rowH;
         DrawStatRow("ATTACK SPEED", $"{atkSpd * 100f - 100f:+0;-0;+0}%", atkSpd > 1.0f, px + 16, sy, barW); sy += rowH;
@@ -319,12 +322,15 @@ public sealed class LoadoutScreen
         }
         else
         {
+            if (def.MaxHpBonus > 0f) DrawBulletStat("MAX HP", $"+{def.MaxHpBonus:0}", cx + 10, ref ty);
+            if (def.ArmorBonus > 0f) DrawBulletStat("ARMOR", $"+{def.ArmorBonus:0}", cx + 10, ref ty);
+            if (def.AttackSpeedMultiplierBonus > 0f) DrawBulletStat("ATTACK SPEED", $"+{def.AttackSpeedMultiplierBonus:P0}", cx + 10, ref ty);
+            if (def.MoveSpeedMultiplierBonus > 0f) DrawBulletStat("SPEED", $"+{def.MoveSpeedMultiplierBonus:P0}", cx + 10, ref ty);
             if (def.CritChanceBonus > 0f) DrawBulletStat("CRIT CHANCE", $"+{def.CritChanceBonus:P0}", cx + 10, ref ty);
             if (def.DamageMultiplierBonus > 0f) DrawBulletStat("ALL DAMAGE", $"+{def.DamageMultiplierBonus:P0}", cx + 10, ref ty);
             if (def.HealthRegenBonus > 0f) DrawBulletStat("HP REGEN", $"+{def.HealthRegenBonus:0.0}/s", cx + 10, ref ty);
             if (def.RangeMultiplierBonus > 0f) DrawBulletStat("RANGE", $"+{def.RangeMultiplierBonus:P0}", cx + 10, ref ty);
             if (def.DodgeChanceBonus > 0f) DrawBulletStat("DODGE", $"+{def.DodgeChanceBonus:P0}", cx + 10, ref ty);
-            if (def.MoveSpeedMultiplierBonus > 0f) DrawBulletStat("SPEED", $"+{def.MoveSpeedMultiplierBonus:P0}", cx + 10, ref ty);
             if ((def.Keywords & WeaponKeywords.Berserk) != 0) DrawBulletStat("TRAIT", "[Berserk]", cx + 10, ref ty);
             if ((def.Keywords & WeaponKeywords.Stationary) != 0) DrawBulletStat("TRAIT", "[Rooted]", cx + 10, ref ty);
             if ((def.Keywords & WeaponKeywords.Burst) != 0) DrawBulletStat("TRAIT", "[Burst Dash]", cx + 10, ref ty);
@@ -598,7 +604,7 @@ public sealed class LoadoutScreen
         Raylib.DrawText(desc, x + 10, y + 42, 9, new Color(160, 180, 205, 255));
 
         string statsSum = def.Type == WeaponType.Passive
-            ? $"Regen: +{def.HealthRegenBonus:0.0} | Crit: +{def.CritChanceBonus:P0} | Dodge: +{def.DodgeChanceBonus:P0}"
+            ? $"HP: +{def.MaxHpBonus:0} | Armor: +{def.ArmorBonus:0} | AtkSpd: +{def.AttackSpeedMultiplierBonus:P0} | Speed: +{def.MoveSpeedMultiplierBonus:P0}"
             : $"Base DMG: {def.BaseDamage:0.0} | CD: {def.AttackInterval:0.00}s | Pierce: {def.PiercingHits}";
         Raylib.DrawText(statsSum, x + 10, y + 72, 9, new Color(90, 240, 210, 255));
     }

@@ -303,12 +303,16 @@ public static class Program
         var playerStore = world.GetStore<PlayerComponent>();
         var healthStore = world.GetStore<HealthComponent>();
         var posStore = world.GetStore<PositionComponent>();
+        var equipStore = world.GetStore<EquipmentComponent>();
+        var invStore = world.GetStore<BioInventoryComponent>();
+        var statsStore = world.GetStore<PlayerStatsComponent>();
 
         if (playerStore != null && healthStore != null && posStore != null)
         {
             foreach (Entity p in world.Query().With<PlayerComponent>().With<HealthComponent>())
             {
                 ref HealthComponent hp = ref healthStore.Get(p);
+                hp.Max = 100f;
                 hp.Current = hp.Max;
 
                 ref PositionComponent pos = ref posStore.Get(p);
@@ -319,6 +323,30 @@ public static class Program
                 pc.InvulnerabilityTimer = 0f;
                 pc.FlashTimer = 0f;
                 pc.Biomass = 50;
+
+                if (equipStore != null && equipStore.Has(p))
+                {
+                    ref EquipmentComponent equip = ref equipStore.Get(p);
+                    for (int s = 0; s < equip.Slots.Length; s++)
+                    {
+                        equip.Slots[s].Weapon = null;
+                        equip.Slots[s].CooldownTimer = 0f;
+                    }
+                    var dart = WeaponDatabase.CreateItem("bio_dart", tier: 1);
+                    if (dart != null) equip.Equip(0, dart);
+                }
+
+                if (invStore != null && invStore.Has(p))
+                {
+                    ref BioInventoryComponent inv = ref invStore.Get(p);
+                    inv.Items.Clear();
+                }
+
+                if (statsStore != null && statsStore.Has(p))
+                {
+                    ref PlayerStatsComponent stats = ref statsStore.Get(p);
+                    stats = new PlayerStatsComponent();
+                }
             }
         }
 

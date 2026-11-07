@@ -39,14 +39,17 @@ public sealed class PlayerStatsSystem : ISystem
             ref PlayerStatsComponent stats = ref _stats.Get(entity);
             ref readonly EquipmentComponent equip = ref _equipments.Get(entity);
 
-            stats.CritChance = 0.05f;
+            stats.Armor = stats.BonusArmor;
+            stats.CritChance = 0.05f + stats.BonusCritChance;
             stats.CritMultiplier = 1.5f;
-            stats.RangeMultiplier = 1f;
-            stats.DamageMultiplier = 1f;
-            stats.AttackSpeedMultiplier = 1f;
-            stats.HealthRegen = 0f;
-            stats.MoveSpeedMultiplier = 1f;
-            stats.DodgeChance = 0f;
+            stats.RangeMultiplier = 1f + stats.BonusRangeMultiplier;
+            stats.DamageMultiplier = 1f + stats.BonusDamageMultiplier;
+            stats.AttackSpeedMultiplier = 1f + stats.BonusAttackSpeedMultiplier;
+            stats.HealthRegen = stats.BonusHealthRegen;
+            stats.MoveSpeedMultiplier = 1f + stats.BonusMoveSpeedMultiplier;
+            stats.DodgeChance = stats.BonusDodgeChance;
+
+            float totalMaxHp = 100f + stats.BonusMaxHp;
 
             if (_velocities != null && _velocities.Has(entity))
             {
@@ -82,6 +85,7 @@ public sealed class PlayerStatsSystem : ISystem
                 {
                     var weapon = equip.Slots[i].Weapon;
                     if (weapon == null) continue;
+                    totalMaxHp += weapon.Definition.MaxHpBonus;
                     ApplyDef(ref stats, weapon.Definition, ref hasBerserk, ref hasRootedSpikes, ref hasBurstBoots);
                 }
             }
@@ -95,8 +99,21 @@ public sealed class PlayerStatsSystem : ISystem
                     {
                         var item = inv.Items[i];
                         if (item == null) continue;
+                        totalMaxHp += item.Definition.MaxHpBonus;
                         ApplyDef(ref stats, item.Definition, ref hasBerserk, ref hasRootedSpikes, ref hasBurstBoots);
                     }
+                }
+            }
+
+            if (_healths != null && _healths.Has(entity))
+            {
+                ref HealthComponent hp = ref _healths.Get(entity);
+                if (MathF.Abs(hp.Max - totalMaxHp) > 0.01f)
+                {
+                    float diff = totalMaxHp - hp.Max;
+                    hp.Max = totalMaxHp;
+                    if (diff > 0f) hp.Current = MathF.Min(hp.Max, hp.Current + diff);
+                    else hp.Current = MathF.Min(hp.Max, hp.Current);
                 }
             }
 
@@ -160,6 +177,7 @@ public sealed class PlayerStatsSystem : ISystem
 
     private static void ApplyDef(ref PlayerStatsComponent stats, WeaponDefinition def, ref bool hasBerserk, ref bool hasRootedSpikes, ref bool hasBurstBoots)
     {
+        stats.Armor += def.ArmorBonus;
         stats.CritChance += def.CritChanceBonus;
         stats.CritMultiplier += def.CritMultiplierBonus;
         stats.RangeMultiplier += def.RangeMultiplierBonus;

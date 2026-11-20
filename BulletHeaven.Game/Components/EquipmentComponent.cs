@@ -11,11 +11,27 @@ public sealed class WeaponSlot
     public float VisualDuration = 0.18f;
     public float AttackAngle;
     public float AttackRange;
+    public float SpecialActiveTimer;
+    public float SpecialVisualTimer;
+    public float SpecialVisualDuration = 0.35f;
+
+    public void Reset()
+    {
+        Weapon = null;
+        CooldownTimer = 0f;
+        VisualTimer = 0f;
+        VisualDuration = 0.18f;
+        AttackAngle = 0f;
+        AttackRange = 0f;
+        SpecialActiveTimer = 0f;
+        SpecialVisualTimer = 0f;
+        SpecialVisualDuration = 0.35f;
+    }
 }
 
 public struct EquipmentComponent
 {
-    public const int MaxWeaponSlots = 6;
+    public const int MaxWeaponSlots = 3;
     public WeaponSlot[] Slots;
 
     public EquipmentComponent() : this(MaxWeaponSlots)
@@ -24,8 +40,9 @@ public struct EquipmentComponent
 
     public EquipmentComponent(int maxSlots)
     {
-        Slots = new WeaponSlot[maxSlots];
-        for (int i = 0; i < maxSlots; i++)
+        int clamped = Math.Clamp(maxSlots, 1, MaxWeaponSlots);
+        Slots = new WeaponSlot[clamped];
+        for (int i = 0; i < clamped; i++)
         {
             Slots[i] = new WeaponSlot();
         }
@@ -34,7 +51,7 @@ public struct EquipmentComponent
     public bool CanEquipInSlot(int slotIndex, WeaponItem item)
     {
         if (Slots == null || slotIndex < 0 || slotIndex >= Slots.Length) return false;
-        return item.Definition.Type != WeaponType.Passive;
+        return item != null;
     }
 
     public bool Equip(int slotIndex, WeaponItem item)
@@ -70,6 +87,16 @@ public struct EquipmentComponent
         return -1;
     }
 
+    public int FindSlotByWeaponId(string weaponId)
+    {
+        if (Slots == null || string.IsNullOrEmpty(weaponId)) return -1;
+        for (int i = 0; i < Slots.Length; i++)
+        {
+            if (Slots[i].Weapon?.Definition.Id == weaponId) return i;
+        }
+        return -1;
+    }
+
     public int CountEquippedWeapons()
     {
         if (Slots == null) return 0;
@@ -79,41 +106,5 @@ public struct EquipmentComponent
             if (Slots[i].Weapon != null) count++;
         }
         return count;
-    }
-
-    public bool CanMergeAny(out int slotA, out int slotB)
-    {
-        slotA = -1;
-        slotB = -1;
-        if (Slots == null) return false;
-
-        for (int i = 0; i < Slots.Length; i++)
-        {
-            var wA = Slots[i].Weapon;
-            if (wA == null || wA.Tier >= 4) continue;
-
-            for (int j = i + 1; j < Slots.Length; j++)
-            {
-                var wB = Slots[j].Weapon;
-                if (wB == null) continue;
-
-                if (wA.Definition.Id == wB.Definition.Id && wA.Tier == wB.Tier)
-                {
-                    slotA = i;
-                    slotB = j;
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    public bool AreMatching(int slotA, int slotB)
-    {
-        if (Slots == null || slotA < 0 || slotB < 0 || slotA >= Slots.Length || slotB >= Slots.Length || slotA == slotB) return false;
-        var wA = Slots[slotA].Weapon;
-        var wB = Slots[slotB].Weapon;
-        if (wA == null || wB == null) return false;
-        return wA.Definition.Id == wB.Definition.Id && wA.Tier == wB.Tier && wA.Tier < 4;
     }
 }

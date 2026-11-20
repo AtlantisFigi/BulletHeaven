@@ -12,7 +12,6 @@ namespace BulletHeaven.Game.Systems;
 public sealed class WaveSystem : ISystem
 {
     private World? _world;
-    private readonly CommandBuffer _cmd;
     private ComponentStore<EnemyComponent>? _enemies;
 
     private WaveDefinition _currentWave;
@@ -24,11 +23,9 @@ public sealed class WaveSystem : ISystem
     public float TimeRemaining => MathF.Max(0f, _waveTimer);
     public int ActiveEnemyCount => _activeEnemies;
     public bool IsWaveRunning { get; private set; }
-    public bool WaveCompleted { get; private set; }
 
-    public WaveSystem(CommandBuffer cmd)
+    public WaveSystem()
     {
-        _cmd = cmd;
         _currentWave = WaveDatabase.GetWave(1);
     }
 
@@ -38,36 +35,38 @@ public sealed class WaveSystem : ISystem
         _enemies = world.GetStore<EnemyComponent>();
         _waveTimer = _currentWave.DurationSeconds;
         IsWaveRunning = false;
-        WaveCompleted = false;
     }
 
     public void StartWave(int waveNumber)
     {
         _currentWave = WaveDatabase.GetWave(waveNumber);
         _waveTimer = _currentWave.DurationSeconds;
-        _spawnCooldown = 0.3f;
+        _spawnCooldown = 0f;
     }
 
     public void StartCurrentWave()
     {
         IsWaveRunning = true;
-        WaveCompleted = false;
         _waveTimer = _currentWave.DurationSeconds;
-        _spawnCooldown = 0.3f;
+        _spawnCooldown = 0f;
     }
 
     public void StartNextWave()
     {
         StartWave(_currentWave.WaveNumber + 1);
         IsWaveRunning = true;
-        WaveCompleted = false;
     }
 
     public void Reset()
     {
         StartWave(1);
+        _activeEnemies = 0;
         IsWaveRunning = false;
-        WaveCompleted = false;
+    }
+
+    public void SyncActiveEnemyCount()
+    {
+        _activeEnemies = _enemies != null ? _enemies.Count : 0;
     }
 
     public void Update(float deltaTime)
@@ -78,26 +77,10 @@ public sealed class WaveSystem : ISystem
 
         _waveTimer -= deltaTime;
 
-        if (_waveTimer <= 0f)
+        while (_waveTimer <= 0f)
         {
-            foreach (Entity e in _world.Query().With<EnemyComponent>())
-            {
-                _cmd.DestroyEntity(e);
-            }
-
-            var playerStore = _world.GetStore<PlayerComponent>();
-            if (playerStore != null)
-            {
-                foreach (Entity p in _world.Query().With<PlayerComponent>())
-                {
-                    ref PlayerComponent pc = ref playerStore.Get(p);
-                    pc.Biomass += 35 + _currentWave.WaveNumber * 15;
-                }
-            }
-
-            IsWaveRunning = false;
-            WaveCompleted = true;
-            return;
+            _currentWave = WaveDatabase.GetWave(_currentWave.WaveNumber + 1);
+            _waveTimer += _currentWave.DurationSeconds;
         }
 
         _spawnCooldown -= deltaTime;

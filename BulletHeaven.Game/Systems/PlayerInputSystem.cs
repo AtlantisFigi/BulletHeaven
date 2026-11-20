@@ -1,3 +1,4 @@
+using System;
 using BulletHeaven.ECS;
 using BulletHeaven.ECS.Core;
 using BulletHeaven.ECS.Storage;
@@ -23,6 +24,7 @@ public sealed class PlayerInputSystem : ISystem
     public void Update(float deltaTime)
     {
         if (_world == null || _players == null || _velocities == null) return;
+        if (!Raylib.IsWindowReady()) return;
 
         float dx = 0f;
         float dy = 0f;
@@ -45,8 +47,20 @@ public sealed class PlayerInputSystem : ISystem
             ref PlayerComponent player = ref _players.Get(e);
             ref VelocityComponent vel = ref _velocities.Get(e);
 
-            vel.X = dx * player.Speed;
-            vel.Y = dy * player.Speed;
+            if (player.TrailSprintTimer > 0f)
+            {
+                player.TrailSprintTimer = MathF.Max(0f, player.TrailSprintTimer - deltaTime);
+            }
+
+            if (player.GrazeFlashTimer > 0f)
+            {
+                player.GrazeFlashTimer = MathF.Max(0f, player.GrazeFlashTimer - deltaTime);
+            }
+
+            float effectiveSpeed = player.TrailSprintTimer > 0f ? player.Speed * 1.45f : player.Speed;
+
+            vel.X = dx * effectiveSpeed;
+            vel.Y = dy * effectiveSpeed;
 
             if (lenSq > 0f)
             {
@@ -55,4 +69,3 @@ public sealed class PlayerInputSystem : ISystem
         }
     }
 }
-

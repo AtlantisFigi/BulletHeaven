@@ -12,7 +12,7 @@ public sealed class WaveDefinition
 
     public EnemyType SelectRandomEnemy(Random rng)
     {
-        if (EnemyPool.Count == 0) return EnemyType.Basic;
+        if (EnemyPool.Count == 0) return EnemyType.Swarmer;
 
         int totalWeight = 0;
         for (int i = 0; i < EnemyPool.Count; i++)

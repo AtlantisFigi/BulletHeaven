@@ -14,6 +14,7 @@ public sealed class ChargerSystem : ISystem
     private ComponentStore<VelocityComponent>? _velocities;
     private ComponentStore<ChargerComponent>? _chargers;
     private ComponentStore<RenderColorComponent>? _colors;
+    private ComponentStore<HealthComponent>? _healths;
 
     public float TargetX { get; set; } = 640f;
     public float TargetY { get; set; } = 360f;
@@ -25,6 +26,7 @@ public sealed class ChargerSystem : ISystem
         _velocities = world.GetStore<VelocityComponent>();
         _chargers = world.GetStore<ChargerComponent>();
         _colors = world.GetStore<RenderColorComponent>();
+        _healths = world.GetStore<HealthComponent>();
     }
 
     public void Update(float deltaTime)
@@ -33,6 +35,8 @@ public sealed class ChargerSystem : ISystem
 
         foreach (Entity p in _world.Query().With<PositionComponent>().With<PlayerComponent>())
         {
+            if (_healths != null && _healths.Has(p) && _healths.Get(p).IsDead) continue;
+
             ref readonly PositionComponent pPos = ref _positions.Get(p);
             TargetX = pPos.X;
             TargetY = pPos.Y;
@@ -46,6 +50,8 @@ public sealed class ChargerSystem : ISystem
             .With<VelocityComponent>()
             .With<ChargerComponent>())
         {
+            if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
+
             ref readonly PositionComponent pos = ref _positions.Get(e);
             ref VelocityComponent vel = ref _velocities.Get(e);
             ref ChargerComponent charger = ref _chargers.Get(e);
@@ -67,16 +73,17 @@ public sealed class ChargerSystem : ISystem
                     }
                     else
                     {
-                        vel.X = 0;
-                        vel.Y = 0;
+                        vel.X = 0f;
+                        vel.Y = 0f;
                     }
 
-                    if (charger.StateTimer <= 0f)
+                    float triggerRange = charger.TriggerRange > 0f ? charger.TriggerRange : 280f;
+                    if (charger.StateTimer <= 0f && distSq <= triggerRange * triggerRange)
                     {
                         charger.State = EnemyState.Telegraph;
-                        charger.StateTimer = 0.4f;
-                        vel.X = 0;
-                        vel.Y = 0;
+                        charger.StateTimer = 0.55f;
+                        vel.X = 0f;
+                        vel.Y = 0f;
 
                         if (distSq > 1f)
                         {
@@ -93,26 +100,26 @@ public sealed class ChargerSystem : ISystem
                         if (hasColors && _colors!.Has(e))
                         {
                             ref RenderColorComponent col = ref _colors.Get(e);
-                            col.R = 255; col.G = 40; col.B = 40;
+                            col.R = 255; col.G = 135; col.B = 30;
                         }
                     }
                     break;
 
                 case EnemyState.Telegraph:
-                    vel.X = 0;
-                    vel.Y = 0;
+                    vel.X = 0f;
+                    vel.Y = 0f;
 
                     if (charger.StateTimer <= 0f)
                     {
                         charger.State = EnemyState.Charge;
-                        charger.StateTimer = 0.6f;
+                        charger.StateTimer = 0.65f;
                         vel.X = charger.DirX * charger.ChargeSpeed;
                         vel.Y = charger.DirY * charger.ChargeSpeed;
 
                         if (hasColors && _colors!.Has(e))
                         {
                             ref RenderColorComponent col = ref _colors.Get(e);
-                            col.R = 255; col.G = 220; col.B = 0;
+                            col.R = 255; col.G = 220; col.B = 45;
                         }
                     }
                     break;
@@ -124,31 +131,31 @@ public sealed class ChargerSystem : ISystem
                     if (charger.StateTimer <= 0f)
                     {
                         charger.State = EnemyState.Cooldown;
-                        charger.StateTimer = 0.5f;
-                        vel.X = 0;
-                        vel.Y = 0;
+                        charger.StateTimer = 0.45f;
+                        vel.X = 0f;
+                        vel.Y = 0f;
 
                         if (hasColors && _colors!.Has(e))
                         {
                             ref RenderColorComponent col = ref _colors.Get(e);
-                            col.R = 90; col.G = 130; col.B = 180;
+                            col.R = 215; col.G = 140; col.B = 35;
                         }
                     }
                     break;
 
                 case EnemyState.Cooldown:
-                    vel.X = 0;
-                    vel.Y = 0;
+                    vel.X = 0f;
+                    vel.Y = 0f;
 
                     if (charger.StateTimer <= 0f)
                     {
                         charger.State = EnemyState.Idle;
-                        charger.StateTimer = 1.8f;
+                        charger.StateTimer = 1.0f;
 
                         if (hasColors && _colors!.Has(e))
                         {
                             ref RenderColorComponent col = ref _colors.Get(e);
-                            col.R = 230; col.G = 110; col.B = 30;
+                            col.R = 245; col.G = 175; col.B = 35;
                         }
                     }
                     break;

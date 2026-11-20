@@ -21,7 +21,7 @@ public static class BenchmarkRunner
         scheduler.Register(new SwarmAISystem())
                  .Register(new StatefulAISystem(cmd))
                  .Register(new ChargerSystem())
-                 .Register(new SpitterSystem(cmd))
+                 .Register(new SpitterSystem(cmd) { MaxActiveProjectiles = 500 })
                  .Register(new SummonerSystem(cmd))
                  .Register(new MovementSystem());
 

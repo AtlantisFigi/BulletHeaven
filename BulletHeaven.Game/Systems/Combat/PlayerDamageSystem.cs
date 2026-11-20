@@ -15,18 +15,20 @@ public sealed class PlayerDamageSystem : ISystem
     private World? _world;
     private ComponentStore<PositionComponent>? _positions;
     private ComponentStore<PlayerComponent>? _players;
-    private ComponentStore<PlayerStatsComponent>? _stats;
     private ComponentStore<HealthComponent>? _healths;
     private ComponentStore<EnemyComponent>? _enemies;
     private ComponentStore<RenderColorComponent>? _colors;
+    private ComponentStore<EnemyProjectileComponent>? _enemyProjectiles;
 
     private readonly SpatialGrid _grid;
     private readonly DamageTextService _damageTexts;
+    private readonly CommandBuffer? _cmd;
 
-    public PlayerDamageSystem(SpatialGrid grid, DamageTextService damageTexts)
+    public PlayerDamageSystem(SpatialGrid grid, DamageTextService damageTexts, CommandBuffer? cmd = null)
     {
         _grid = grid;
         _damageTexts = damageTexts;
+        _cmd = cmd;
     }
 
     public void Initialize(World world)
@@ -34,10 +36,10 @@ public sealed class PlayerDamageSystem : ISystem
         _world = world;
         _positions = world.GetStore<PositionComponent>();
         _players = world.GetStore<PlayerComponent>();
-        _stats = world.GetStore<PlayerStatsComponent>();
         _healths = world.GetStore<HealthComponent>();
         _enemies = world.GetStore<EnemyComponent>();
         _colors = world.GetStore<RenderColorComponent>();
+        _enemyProjectiles = world.GetStore<EnemyProjectileComponent>();
     }
 
     public void Update(float deltaTime)
@@ -62,94 +64,152 @@ public sealed class PlayerDamageSystem : ISystem
                 player.FlashTimer -= deltaTime;
             }
 
-            if (player.InvulnerabilityTimer > 0f) continue;
-
-            float playerRadius = 12f;
-            if (_colors != null && _colors.Has(playerEntity))
-            {
-                playerRadius = _colors.Get(playerEntity).Radius;
-            }
-
-            float searchRadius = playerRadius + 14f;
-            CellRange range = _grid.GetRange(pos.X, pos.Y, searchRadius);
+            float hitboxRadius = player.HitboxRadius > 0f ? player.HitboxRadius : PlayerComponent.CoreHitboxRadius;
+            float visualRadius = (_colors != null && _colors.Has(playerEntity)) ? _colors.Get(playerEntity).Radius : 16f;
             bool tookHit = false;
 
-            for (int r = range.MinRow; r <= range.MaxRow && !tookHit; r++)
+            if (!player.IsInvulnerable)
             {
-                for (int c = range.MinCol; c <= range.MaxCol && !tookHit; c++)
+                float searchRadius = hitboxRadius + 48f;
+                CellRange range = _grid.GetRange(pos.X, pos.Y, searchRadius);
+
+                for (int r = range.MinRow; r <= range.MaxRow && !tookHit; r++)
                 {
-                    var cell = _grid.GetCell(c, r);
-                    for (int i = 0; i < cell.Count; i++)
+                    for (int c = range.MinCol; c <= range.MaxCol && !tookHit; c++)
                     {
-                        Entity enemyEntity = cell[i];
-                        if (!_enemies.Has(enemyEntity) || !_positions.Has(enemyEntity)) continue;
-
-                        ref readonly PositionComponent ePos = ref _positions.Get(enemyEntity);
-                        ref readonly EnemyComponent enemy = ref _enemies.Get(enemyEntity);
-
-                        float enemyRadius = 10f;
-                        if (_colors != null && _colors.Has(enemyEntity))
+                        var cell = _grid.GetCell(c, r);
+                        for (int i = 0; i < cell.Count; i++)
                         {
-                            enemyRadius = _colors.Get(enemyEntity).Radius;
-                        }
+                            Entity enemyEntity = cell[i];
+                            if (!_world.IsAlive(enemyEntity) || !_enemies.Has(enemyEntity) || !_positions.Has(enemyEntity)) continue;
+                            if (_healths.Has(enemyEntity) && _healths.Get(enemyEntity).IsDead) continue;
 
-                        float hitDist = playerRadius + enemyRadius;
-                        float dx = pos.X - ePos.X;
-                        float dy = pos.Y - ePos.Y;
-                        float distSq = dx * dx + dy * dy;
+                            ref readonly PositionComponent ePos = ref _positions.Get(enemyEntity);
+                            ref readonly EnemyComponent enemy = ref _enemies.Get(enemyEntity);
 
-                        if (distSq <= hitDist * hitDist)
-                        {
-                            float dodgeChance = 0f;
-                            float armor = 0f;
-                            if (_stats != null && _stats.Has(playerEntity))
+                            float enemyRadius = 10f;
+                            if (_colors != null && _colors.Has(enemyEntity))
                             {
-                                ref readonly PlayerStatsComponent s = ref _stats.Get(playerEntity);
-                                dodgeChance = s.DodgeChance;
-                                armor = s.Armor;
+                                enemyRadius = _colors.Get(enemyEntity).Radius;
                             }
 
-                            bool dodged = dodgeChance > 0f && (Random.Shared.NextDouble() < dodgeChance);
-                            if (dodged)
+                            float hitDist = hitboxRadius + enemyRadius;
+                            float dx = pos.X - ePos.X;
+                            float dy = pos.Y - ePos.Y;
+                            float distSq = dx * dx + dy * dy;
+
+                            if (distSq <= hitDist * hitDist)
                             {
-                                player.InvulnerabilityTimer = 0.20f;
-                                _damageTexts.Spawn(pos.X, pos.Y - playerRadius - 8f, "DODGE", new Color(80, 230, 255, 255));
+                                float damage = MathF.Max(1f, enemy.ContactDamage);
+                                ApplyPlayerHit(ref player, ref health, in pos, visualRadius, damage);
                                 tookHit = true;
                                 break;
                             }
-
-                            float reduction = 100f / (100f + MathF.Max(0f, armor));
-                            float damage = MathF.Max(1f, enemy.ContactDamage * reduction);
-
-                            health.Current = MathF.Max(0f, health.Current - damage);
-
-                            float maxHp = MathF.Max(1f, health.Max);
-                            float damageRatio = damage / maxHp;
-                            float iframeDuration;
-                            if (damageRatio <= 0.075f)
-                            {
-                                iframeDuration = 0.20f;
-                            }
-                            else if (damageRatio >= 0.15f)
-                            {
-                                iframeDuration = 0.40f;
-                            }
-                            else
-                            {
-                                float t = (damageRatio - 0.075f) / (0.15f - 0.075f);
-                                iframeDuration = 0.20f + t * (0.40f - 0.20f);
-                            }
-
-                            player.InvulnerabilityTimer = iframeDuration;
-                            player.FlashTimer = 0.12f;
-
-                            _damageTexts.Spawn(pos.X, pos.Y - playerRadius - 8f, $"-{(int)MathF.Round(damage)}", new Color(255, 70, 70, 255));
-                            tookHit = true;
-                            break;
                         }
                     }
                 }
             }
+
+            if (_enemyProjectiles != null)
+            {
+                Entity? hitProjectile = null;
+
+                foreach (Entity projEntity in _world.Query().With<PositionComponent>().With<EnemyProjectileComponent>())
+                {
+                    ref EnemyProjectileComponent proj = ref _enemyProjectiles.Get(projEntity);
+                    if (proj.Lifetime <= 0f) continue;
+
+                    ref readonly PositionComponent projPos = ref _positions.Get(projEntity);
+                    float projRadius = MathF.Max(1f, proj.Radius);
+                    float hitDist = hitboxRadius + projRadius;
+                    float dx = pos.X - projPos.X;
+                    float dy = pos.Y - projPos.Y;
+                    float distSq = dx * dx + dy * dy;
+
+                    if (!player.IsInvulnerable && !tookHit && distSq <= hitDist * hitDist)
+                    {
+                        float damage = MathF.Max(1f, proj.Damage);
+                        ApplyPlayerHit(ref player, ref health, in pos, visualRadius, damage);
+                        proj.Lifetime = 0f;
+                        hitProjectile = projEntity;
+                        tookHit = true;
+                        continue;
+                    }
+
+                    if (!proj.HasBeenGrazed && distSq > hitDist * hitDist)
+                    {
+                        float grazeDist = PlayerComponent.DefaultGrazeRadius + projRadius;
+                        if (distSq <= grazeDist * grazeDist)
+                        {
+                            proj.HasBeenGrazed = true;
+                            player.GrazeFlashTimer = 0.18f;
+
+                            if (player.GrazeStacks < PlayerComponent.MaxGrazeStacks)
+                            {
+                                player.GrazeProgress++;
+                                if (player.GrazeProgress >= PlayerComponent.GrazesPerStack)
+                                {
+                                    player.GrazeProgress -= PlayerComponent.GrazesPerStack;
+                                    player.GrazeStacks = Math.Min(PlayerComponent.MaxGrazeStacks, player.GrazeStacks + 1);
+                                    if (player.GrazeStacks >= PlayerComponent.MaxGrazeStacks)
+                                    {
+                                        player.GrazeProgress = 0;
+                                    }
+                                    _damageTexts.Spawn(pos.X, pos.Y - visualRadius - 10f, "STACK READY!", new Color(255, 230, 80, 255));
+                                }
+                                else
+                                {
+                                    _damageTexts.Spawn(pos.X, pos.Y - visualRadius - 6f, "GRAZE", new Color(90, 245, 255, 255));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (hitProjectile.HasValue)
+                {
+                    if (_cmd != null)
+                    {
+                        _cmd.DestroyEntity(hitProjectile.Value);
+                    }
+                    else if (_world.IsAlive(hitProjectile.Value))
+                    {
+                        _world.DestroyEntity(hitProjectile.Value);
+                    }
+                }
+            }
         }
+    }
+
+    private void ApplyPlayerHit(
+        ref PlayerComponent player,
+        ref HealthComponent health,
+        in PositionComponent pos,
+        float visualRadius,
+        float damage)
+    {
+        health.Current = MathF.Max(0f, health.Current - damage);
+
+        float maxHp = MathF.Max(1f, health.Max);
+        float damageRatio = damage / maxHp;
+        float iframeDuration;
+        if (damageRatio <= 0.075f)
+        {
+            iframeDuration = 0.20f;
+        }
+        else if (damageRatio >= 0.15f)
+        {
+            iframeDuration = 0.40f;
+        }
+        else
+        {
+            float t = (damageRatio - 0.075f) / (0.15f - 0.075f);
+            iframeDuration = 0.20f + t * (0.40f - 0.20f);
+        }
+
+        player.InvulnerabilityTimer = iframeDuration;
+        player.FlashTimer = 0.12f;
+
+        _damageTexts.Spawn(pos.X, pos.Y - visualRadius - 8f, $"-{(int)MathF.Round(damage)}", new Color(255, 70, 70, 255));
     }
 }

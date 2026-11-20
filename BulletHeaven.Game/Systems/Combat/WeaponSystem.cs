@@ -12,7 +12,7 @@ using Raylib_cs;
 
 namespace BulletHeaven.Game.Systems.Combat;
 
-public struct LightningArc
+public struct AimLineVisual
 {
     public Vector2 From;
     public Vector2 To;
@@ -20,20 +20,36 @@ public struct LightningArc
     public float MaxTimer;
 }
 
+public struct ExplosionVisual
+{
+    public Vector2 Center;
+    public float Radius;
+    public float Timer;
+    public float MaxTimer;
+    public Color Color;
+}
+
 public sealed class WeaponSystem : ISystem
 {
-    public static readonly List<LightningArc> ActiveArcs = new();
+    public readonly List<AimLineVisual> ActiveAimLines = new();
+    public readonly List<ExplosionVisual> ActiveExplosions = new();
 
     private World? _world;
     private readonly CommandBuffer _cmd;
     private readonly SpatialGrid? _grid;
+
     private ComponentStore<PositionComponent>? _positions;
     private ComponentStore<PlayerComponent>? _players;
-    private ComponentStore<PlayerStatsComponent>? _stats;
     private ComponentStore<EquipmentComponent>? _equipments;
     private ComponentStore<EnemyComponent>? _enemies;
     private ComponentStore<HealthComponent>? _healths;
     private ComponentStore<VelocityComponent>? _velocities;
+    private ComponentStore<KnockbackComponent>? _knockbacks;
+    private ComponentStore<HazardZoneComponent>? _hazards;
+    private ComponentStore<EnemyProjectileComponent>? _enemyProjectiles;
+    private ComponentStore<RenderColorComponent>? _colors;
+
+    private readonly Dictionary<Entity, Vector2> _lastPlayerPositions = new();
 
     public WeaponSystem(CommandBuffer cmd, SpatialGrid? grid = null)
     {
@@ -46,192 +62,537 @@ public sealed class WeaponSystem : ISystem
         _world = world;
         _positions = world.GetStore<PositionComponent>();
         _players = world.GetStore<PlayerComponent>();
-        _stats = world.GetStore<PlayerStatsComponent>();
         _equipments = world.GetStore<EquipmentComponent>();
         _enemies = world.GetStore<EnemyComponent>();
         _healths = world.GetStore<HealthComponent>();
         _velocities = world.GetStore<VelocityComponent>();
+        _knockbacks = world.GetStore<KnockbackComponent>();
+        _hazards = world.GetStore<HazardZoneComponent>();
+        _enemyProjectiles = world.GetStore<EnemyProjectileComponent>();
+        _colors = world.GetStore<RenderColorComponent>();
+        ClearTransientVisuals();
+    }
+
+    public void ClearTransientVisuals()
+    {
+        ActiveAimLines.Clear();
+        ActiveExplosions.Clear();
+        _lastPlayerPositions.Clear();
     }
 
     public void Update(float deltaTime)
     {
-        for (int a = ActiveArcs.Count - 1; a >= 0; a--)
+        for (int a = ActiveAimLines.Count - 1; a >= 0; a--)
         {
-            var arc = ActiveArcs[a];
-            arc.Timer -= deltaTime;
-            if (arc.Timer <= 0f)
+            var line = ActiveAimLines[a];
+            line.Timer -= deltaTime;
+            if (line.Timer <= 0f)
             {
-                ActiveArcs.RemoveAt(a);
+                ActiveAimLines.RemoveAt(a);
             }
             else
             {
-                ActiveArcs[a] = arc;
+                ActiveAimLines[a] = line;
             }
         }
 
-        if (_world == null || _positions == null || _equipments == null) return;
+        for (int e = ActiveExplosions.Count - 1; e >= 0; e--)
+        {
+            var exp = ActiveExplosions[e];
+            exp.Timer -= deltaTime;
+            if (exp.Timer <= 0f)
+            {
+                ActiveExplosions.RemoveAt(e);
+            }
+            else
+            {
+                ActiveExplosions[e] = exp;
+            }
+        }
+
+        if (_world == null || _positions == null || _players == null || _equipments == null) return;
+
+        bool canPollKeyboard = Raylib.IsWindowReady();
 
         foreach (Entity playerEntity in _world.Query().With<PositionComponent>().With<EquipmentComponent>().With<PlayerComponent>())
         {
+            if (_healths != null && _healths.Has(playerEntity) && _healths.Get(playerEntity).IsDead) continue;
+
             ref readonly PositionComponent playerPos = ref _positions.Get(playerEntity);
-            EquipmentComponent equip = _equipments.Get(playerEntity);
+            ref PlayerComponent player = ref _players.Get(playerEntity);
+            ref readonly EquipmentComponent equip = ref _equipments.Get(playerEntity);
 
-            float rangeMult = 1f;
-            float dmgMult = 1f;
-            float atkSpdMult = 1f;
-            float critChance = 0.05f;
-            float critMult = 1.5f;
-
-            if (_stats != null && _stats.Has(playerEntity))
+            Vector2 currentPos = new(playerPos.X, playerPos.Y);
+            bool isMoving = false;
+            if (_velocities != null && _velocities.Has(playerEntity))
             {
-                ref readonly PlayerStatsComponent s = ref _stats.Get(playerEntity);
-                rangeMult = s.RangeMultiplier;
-                dmgMult = s.DamageMultiplier;
-                atkSpdMult = s.AttackSpeedMultiplier;
-                critChance = s.CritChance;
-                critMult = s.CritMultiplier;
+                ref readonly VelocityComponent vel = ref _velocities.Get(playerEntity);
+                isMoving = vel.X * vel.X + vel.Y * vel.Y > 1f;
             }
+            else if (_lastPlayerPositions.TryGetValue(playerEntity, out Vector2 prevPos))
+            {
+                float pdx = currentPos.X - prevPos.X;
+                float pdy = currentPos.Y - prevPos.Y;
+                isMoving = pdx * pdx + pdy * pdy > 0.0001f;
+            }
+            _lastPlayerPositions[playerEntity] = currentPos;
 
             for (int i = 0; i < equip.Slots.Length; i++)
             {
                 var slot = equip.Slots[i];
                 if (slot.VisualTimer > 0f)
                 {
-                    slot.VisualTimer -= deltaTime;
+                    slot.VisualTimer = MathF.Max(0f, slot.VisualTimer - deltaTime);
                 }
+                if (slot.SpecialActiveTimer > 0f)
+                {
+                    slot.SpecialActiveTimer = MathF.Max(0f, slot.SpecialActiveTimer - deltaTime);
+                }
+                if (slot.SpecialVisualTimer > 0f)
+                {
+                    slot.SpecialVisualTimer = MathF.Max(0f, slot.SpecialVisualTimer - deltaTime);
+                }
+            }
 
-                if (slot.Weapon == null || slot.Weapon.Definition.Type == WeaponType.Passive) continue;
+            if (canPollKeyboard)
+            {
+                for (int s = 0; s < EquipmentComponent.MaxWeaponSlots && s < equip.Slots.Length; s++)
+                {
+                    if (Raylib.IsKeyPressed(KeyboardKey.One + s) || Raylib.IsKeyPressed(KeyboardKey.Kp1 + s))
+                    {
+                        TryActivateSpecial(playerEntity, s);
+                    }
+                }
+            }
+
+            for (int i = 0; i < equip.Slots.Length; i++)
+            {
+                var slot = equip.Slots[i];
+                if (slot.Weapon == null) continue;
 
                 slot.CooldownTimer -= deltaTime;
-                if (slot.CooldownTimer <= 0f)
+                var weapon = slot.Weapon;
+                var def = weapon.Definition;
+
+                switch (def.Type)
                 {
-                    float effectiveRange = slot.Weapon.Range * rangeMult;
+                    case WeaponType.ForwardCone:
+                        if (slot.CooldownTimer <= 0f)
+                        {
+                            slot.CooldownTimer = MathF.Max(0.08f, weapon.AttackInterval);
+                            float effectiveRange = weapon.Range;
+                            float angle = player.FacingAngle;
 
-                    if (TryFindClosestEnemy(playerPos.X, playerPos.Y, effectiveRange, out Entity targetEnemy, out float enemyX, out float enemyY, out float enemyDist))
+                            slot.AttackAngle = angle;
+                            slot.AttackRange = effectiveRange;
+                            slot.VisualDuration = 0.20f;
+                            slot.VisualTimer = slot.VisualDuration;
+
+                            float kbTime = def.KnockbackTime > 0f ? def.KnockbackTime : 0.22f;
+                            ExecuteConeStrike(playerPos.X, playerPos.Y, angle, effectiveRange, def.MeleeArcDegrees, weapon.Damage, def.Knockback, kbTime);
+                        }
+                        break;
+
+                    case WeaponType.PiercingLine:
+                        if (slot.CooldownTimer <= 0f)
+                        {
+                            float effectiveRange = weapon.Range;
+                            if (TryFindFurthestEnemy(playerPos.X, playerPos.Y, effectiveRange, out _, out float tx, out float ty))
+                            {
+                                slot.CooldownTimer = MathF.Max(0.08f, weapon.AttackInterval);
+                                float angle = MathF.Atan2(ty - playerPos.Y, tx - playerPos.X);
+
+                                slot.AttackAngle = angle;
+                                slot.AttackRange = effectiveRange;
+                                slot.VisualDuration = 0.18f;
+                                slot.VisualTimer = slot.VisualDuration;
+
+                                ActiveAimLines.Add(new AimLineVisual
+                                {
+                                    From = new Vector2(playerPos.X, playerPos.Y),
+                                    To = new Vector2(tx, ty),
+                                    Timer = 0.28f,
+                                    MaxTimer = 0.28f
+                                });
+
+                                int shotCount = 1 + weapon.BonusProjectiles;
+                                ExecutePiercingLine(playerPos.X, playerPos.Y, angle, weapon, weapon.Damage, shotCount);
+                            }
+                        }
+                        break;
+
+                    case WeaponType.OuterRing:
+                        // Managed continuously by OrbitSystem
+                        break;
+
+                    case WeaponType.MovementTrail:
+                        if (slot.CooldownTimer < 0f)
+                        {
+                            slot.CooldownTimer = 0f;
+                        }
+
+                        bool isSprinting = player.TrailSprintTimer > 0f;
+                        float interval = MathF.Max(0.05f, isSprinting ? weapon.AttackInterval * 0.5f : weapon.AttackInterval);
+                        if (isSprinting && slot.CooldownTimer > interval)
+                        {
+                            slot.CooldownTimer = interval;
+                        }
+
+                        if (isMoving && slot.CooldownTimer <= 0f)
+                        {
+                            slot.CooldownTimer = interval;
+                            float zoneRadius = isSprinting ? weapon.HazardRadius * 1.5f : weapon.HazardRadius;
+                            float zoneDamage = isSprinting ? weapon.Damage * 1.5f : weapon.Damage;
+                            SpawnHazardZone(playerEntity, playerPos.X, playerPos.Y, weapon, zoneRadius, zoneDamage);
+                        }
+                        break;
+
+                    case WeaponType.ReturningBoomerang:
+                        if (slot.CooldownTimer <= 0f)
+                        {
+                            float effectiveRange = weapon.Range;
+                            if (TryFindClosestEnemy(playerPos.X, playerPos.Y, effectiveRange, out _, out float tx, out float ty))
+                            {
+                                slot.CooldownTimer = MathF.Max(0.08f, weapon.AttackInterval);
+                                float angle = MathF.Atan2(ty - playerPos.Y, tx - playerPos.X);
+
+                                slot.AttackAngle = angle;
+                                slot.AttackRange = effectiveRange;
+                                slot.VisualDuration = 0.18f;
+                                slot.VisualTimer = slot.VisualDuration;
+
+                                int shotCount = 1 + weapon.BonusProjectiles;
+                                ExecuteReturningBoomerang(playerEntity, playerPos.X, playerPos.Y, angle, weapon, weapon.Damage, effectiveRange, shotCount);
+                            }
+                        }
+                        break;
+
+                    case WeaponType.SidewaysBroadside:
+                        if (slot.CooldownTimer <= 0f)
+                        {
+                            slot.CooldownTimer = MathF.Max(0.08f, weapon.AttackInterval);
+                            float facing = player.FacingAngle;
+
+                            slot.AttackAngle = facing;
+                            slot.AttackRange = 24f;
+                            slot.VisualDuration = 0.14f;
+                            slot.VisualTimer = slot.VisualDuration;
+
+                            ExecuteSidewaysBroadside(playerPos.X, playerPos.Y, facing, weapon, weapon.Damage);
+                        }
+                        break;
+                }
+            }
+        }
+    }
+
+    public bool TryActivateSpecial(Entity playerEntity, int slotIndex)
+    {
+        if (_world == null || _positions == null || _players == null || _equipments == null) return false;
+        if (!_world.IsAlive(playerEntity) || !_positions.Has(playerEntity) || !_players.Has(playerEntity) || !_equipments.Has(playerEntity)) return false;
+        if (_healths != null && _healths.Has(playerEntity) && _healths.Get(playerEntity).IsDead) return false;
+
+        ref PlayerComponent player = ref _players.Get(playerEntity);
+        if (player.GrazeStacks <= 0) return false;
+
+        ref readonly EquipmentComponent equip = ref _equipments.Get(playerEntity);
+        if (equip.Slots == null || slotIndex < 0 || slotIndex >= equip.Slots.Length) return false;
+
+        var slot = equip.Slots[slotIndex];
+        var weapon = slot.Weapon;
+        if (weapon == null) return false;
+
+        player.GrazeStacks--;
+        ref readonly PositionComponent playerPos = ref _positions.Get(playerEntity);
+
+        switch (weapon.Definition.Type)
+        {
+            case WeaponType.ForwardCone:
+                ExecuteConeSpecial(slot, playerPos.X, playerPos.Y, player.FacingAngle, weapon);
+                return true;
+
+            case WeaponType.PiercingLine:
+                ExecuteSniperSpecial(slot, playerPos.X, playerPos.Y, player.FacingAngle, weapon);
+                return true;
+
+            case WeaponType.OuterRing:
+                slot.SpecialActiveTimer = 4.0f;
+                slot.SpecialVisualDuration = 4.0f;
+                slot.SpecialVisualTimer = 4.0f;
+                return true;
+
+            case WeaponType.MovementTrail:
+                ExecuteTrailSpecial(playerEntity, ref player, slot, playerPos.X, playerPos.Y, weapon);
+                return true;
+
+            case WeaponType.ReturningBoomerang:
+                ExecuteBoomerangSpecial(playerEntity, slot, playerPos.X, playerPos.Y, player.FacingAngle, weapon);
+                return true;
+
+            case WeaponType.SidewaysBroadside:
+                ExecuteTwinShotsSpecial(slot, playerPos.X, playerPos.Y, player.FacingAngle, weapon);
+                return true;
+
+            default:
+                player.GrazeStacks++;
+                return false;
+        }
+    }
+
+    private void ExecuteConeSpecial(WeaponSlot slot, float px, float py, float facingAngle, WeaponItem weapon)
+    {
+        float specialRange = 250f * (1f + (weapon.Level - 1) * 0.08f);
+        const float specialArcDeg = 140f;
+        float damage = weapon.Damage * 3.5f;
+        const float knockback = 1350f;
+        const float kbTime = 0.42f;
+
+        slot.AttackAngle = facingAngle;
+        slot.AttackRange = specialRange;
+        slot.VisualDuration = 0.35f;
+        slot.VisualTimer = 0.35f;
+        slot.SpecialVisualDuration = 0.35f;
+        slot.SpecialVisualTimer = 0.35f;
+
+        ExecuteConeStrike(px, py, facingAngle, specialRange, specialArcDeg, damage, knockback, kbTime);
+
+        if (_enemyProjectiles != null && _positions != null)
+        {
+            float halfArc = (specialArcDeg * 0.5f) * (MathF.PI / 180f);
+            foreach (Entity epEntity in _world!.Query().With<PositionComponent>().With<EnemyProjectileComponent>())
+            {
+                ref EnemyProjectileComponent ep = ref _enemyProjectiles.Get(epEntity);
+                if (ep.Lifetime <= 0f) continue;
+
+                ref readonly PositionComponent epPos = ref _positions.Get(epEntity);
+                float dx = epPos.X - px;
+                float dy = epPos.Y - py;
+                float maxDist = specialRange + MathF.Max(2f, ep.Radius);
+                float distSq = dx * dx + dy * dy;
+
+                if (distSq <= maxDist * maxDist)
+                {
+                    bool insideCone = distSq < 16f || MathF.Abs(NormalizeAngle(MathF.Atan2(dy, dx) - facingAngle)) <= halfArc;
+                    if (insideCone)
                     {
-                        float cooldown = MathF.Max(0.08f, slot.Weapon.AttackInterval / MathF.Max(0.1f, atkSpdMult));
-                        slot.CooldownTimer = cooldown;
-
-                        float dx = enemyX - playerPos.X;
-                        float dy = enemyY - playerPos.Y;
-                        float angle = MathF.Atan2(dy, dx);
-
-                        slot.AttackAngle = angle;
-                        slot.AttackRange = effectiveRange;
-                        slot.VisualTimer = slot.VisualDuration;
-
-                        bool isCrit = Random.Shared.NextSingle() < critChance;
-                        float finalDamage = slot.Weapon.Damage * dmgMult * (isCrit ? critMult : 1f);
-
-                        if (slot.Weapon.Definition.LongRangeThreshold > 0f && enemyDist > slot.Weapon.Definition.LongRangeThreshold)
-                        {
-                            finalDamage *= slot.Weapon.Definition.LongRangeDamageMultiplier;
-                        }
-
-                        if (slot.Weapon.Definition.Type == WeaponType.Ranged)
-                        {
-                            ExecuteRangedAttack(playerPos.X, playerPos.Y, angle, slot.Weapon, finalDamage, isCrit, playerEntity);
-                        }
-                        else if (slot.Weapon.Definition.Type == WeaponType.Melee)
-                        {
-                            ExecuteMeleeAttack(playerPos.X, playerPos.Y, angle, slot.Weapon, finalDamage, isCrit, playerEntity, effectiveRange);
-                        }
+                        ep.Lifetime = 0f;
+                        _cmd.DestroyEntity(epEntity);
                     }
                 }
             }
         }
     }
 
-    private bool TryFindClosestEnemy(float px, float py, float maxRange, out Entity closest, out float targetX, out float targetY, out float distance)
+    private void ExecuteSniperSpecial(WeaponSlot slot, float px, float py, float fallbackAngle, WeaponItem weapon)
     {
-        closest = default;
-        targetX = 0f;
-        targetY = 0f;
-        distance = 0f;
-
-        if (_world == null || _positions == null || _enemies == null) return false;
-
-        float maxRangeSq = maxRange * maxRange;
-        float bestDistSq = maxRangeSq;
-        bool found = false;
-
-        if (_grid != null)
+        float centerAngle = fallbackAngle;
+        if (TryFindFurthestEnemy(px, py, 750f, out _, out float tx, out float ty))
         {
-            CellRange range = _grid.GetRange(px, py, maxRange);
-            for (int r = range.MinRow; r <= range.MaxRow; r++)
+            centerAngle = MathF.Atan2(ty - py, tx - px);
+        }
+
+        slot.AttackAngle = centerAngle;
+        slot.AttackRange = 720f;
+        slot.VisualDuration = 0.30f;
+        slot.VisualTimer = 0.30f;
+        slot.SpecialVisualDuration = 0.30f;
+        slot.SpecialVisualTimer = 0.30f;
+
+        const int beamCount = 5;
+        const float spreadDeg = 28f;
+        const float speed = 1350f;
+        float damage = weapon.Damage * 3.0f;
+        const float radius = 10f;
+        const float lifetime = 0.90f;
+        const float knockback = 120f;
+        const float kbTime = 0.16f;
+        var color = new Color(180, 250, 255, 255);
+
+        float startOffset = -spreadDeg * 0.5f;
+        float step = spreadDeg / (beamCount - 1);
+
+        for (int b = 0; b < beamCount; b++)
+        {
+            float beamAngle = centerAngle + (startOffset + step * b) * (MathF.PI / 180f);
+            float cosA = MathF.Cos(beamAngle);
+            float sinA = MathF.Sin(beamAngle);
+
+            ActiveAimLines.Add(new AimLineVisual
             {
-                for (int c = range.MinCol; c <= range.MaxCol; c++)
+                From = new Vector2(px, py),
+                To = new Vector2(px + cosA * 720f, py + sinA * 720f),
+                Timer = 0.40f,
+                MaxTimer = 0.40f
+            });
+
+            _cmd.CreateEntity((world, entity) =>
+            {
+                world.AddComponent(entity, new PositionComponent(px, py));
+                world.AddComponent(entity, new VelocityComponent(cosA * speed, sinA * speed));
+                world.AddComponent(entity, new ProjectileComponent(damage, lifetime, radius, knockback, hitsLeft: 999, kbTime));
+                world.AddComponent(entity, new ProjectileVisualComponent(ProjectileShape.PiercingLine, beamAngle, length: 56f, thickness: 10f));
+                world.AddComponent(entity, new RenderColorComponent(color.R, color.G, color.B, color.A, radius));
+            });
+        }
+    }
+
+    private void ExecuteTrailSpecial(Entity playerEntity, ref PlayerComponent player, WeaponSlot slot, float px, float py, WeaponItem weapon)
+    {
+        float explosionDamage = weapon.Damage * 3.5f;
+        const float knockback = 550f;
+        const float kbTime = 0.25f;
+        var color = new Color(165, 255, 85, 255);
+
+        int detonatedCount = 0;
+
+        if (_hazards != null && _positions != null)
+        {
+            foreach (Entity hzEntity in _world!.Query().With<PositionComponent>().With<HazardZoneComponent>())
+            {
+                ref HazardZoneComponent hz = ref _hazards.Get(hzEntity);
+                if (hz.Owner != playerEntity || hz.RemainingDuration <= 0f) continue;
+
+                ref readonly PositionComponent hzPos = ref _positions.Get(hzEntity);
+                ApplyRadialExplosion(hzPos.X, hzPos.Y, 80f, explosionDamage, knockback, kbTime, color);
+
+                hz.RemainingDuration = 0f;
+                _cmd.DestroyEntity(hzEntity);
+                detonatedCount++;
+            }
+        }
+
+        if (detonatedCount == 0)
+        {
+            ApplyRadialExplosion(px, py, 95f, explosionDamage, knockback, kbTime, color);
+        }
+
+        player.TrailSprintTimer = 3.0f;
+        slot.SpecialActiveTimer = 3.0f;
+        slot.SpecialVisualDuration = 3.0f;
+        slot.SpecialVisualTimer = 3.0f;
+    }
+
+    private void ApplyRadialExplosion(float cx, float cy, float radius, float damage, float knockback, float kbTime, Color color)
+    {
+        ActiveExplosions.Add(new ExplosionVisual
+        {
+            Center = new Vector2(cx, cy),
+            Radius = radius,
+            Timer = 0.35f,
+            MaxTimer = 0.35f,
+            Color = color
+        });
+
+        if (_world == null || _positions == null) return;
+
+        if (_enemies != null)
+        {
+            void DamageEnemy(Entity enemy)
+            {
+                if (!_world.IsAlive(enemy) || !_enemies.Has(enemy)) return;
+                if (_healths != null && _healths.Has(enemy) && _healths.Get(enemy).IsDead) return;
+
+                ref readonly PositionComponent ePos = ref _positions.Get(enemy);
+                float enemyRadius = (_colors != null && _colors.Has(enemy)) ? MathF.Max(10f, _colors.Get(enemy).Radius) : 10f;
+                float hitDist = radius + enemyRadius;
+                float dx = ePos.X - cx;
+                float dy = ePos.Y - cy;
+                float distSq = dx * dx + dy * dy;
+
+                if (distSq <= hitDist * hitDist)
                 {
-                    List<Entity> cell = _grid.GetCell(c, r);
-                    for (int i = 0; i < cell.Count; i++)
+                    if (_healths != null && _healths.Has(enemy))
                     {
-                        Entity e = cell[i];
-                        if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
+                        EnemyDeathHelper.ApplyDamage(_world, _cmd, _healths, _positions, enemy, damage);
+                    }
 
-                        ref readonly PositionComponent pos = ref _positions.Get(e);
-                        float dx = pos.X - px;
-                        float dy = pos.Y - py;
-                        float distSq = dx * dx + dy * dy;
-
-                        if (distSq < bestDistSq)
+                    if (knockback > 0f && _knockbacks != null)
+                    {
+                        if (distSq > 0.0001f)
                         {
-                            bestDistSq = distSq;
-                            closest = e;
-                            targetX = pos.X;
-                            targetY = pos.Y;
-                            found = true;
+                            float inv = 1f / MathF.Sqrt(distSq);
+                            CombatKnockback.Apply(_world, _knockbacks, enemy, dx * inv, dy * inv, knockback, kbTime);
+                        }
+                        else
+                        {
+                            CombatKnockback.Apply(_world, _knockbacks, enemy, 1f, 0f, knockback, kbTime);
                         }
                     }
                 }
             }
-            if (found) distance = MathF.Sqrt(bestDistSq);
-            return found;
-        }
 
-        foreach (Entity e in _world.Query().With<PositionComponent>().With<EnemyComponent>())
-        {
-            if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
-
-            ref readonly PositionComponent pos = ref _positions.Get(e);
-            float dx = pos.X - px;
-            float dy = pos.Y - py;
-            float distSq = dx * dx + dy * dy;
-
-            if (distSq < bestDistSq)
+            if (_grid != null)
             {
-                bestDistSq = distSq;
-                closest = e;
-                targetX = pos.X;
-                targetY = pos.Y;
-                distance = MathF.Sqrt(distSq);
-                found = true;
+                CellRange cellRange = _grid.GetRange(cx, cy, radius + 32f);
+                for (int r = cellRange.MinRow; r <= cellRange.MaxRow; r++)
+                {
+                    for (int c = cellRange.MinCol; c <= cellRange.MaxCol; c++)
+                    {
+                        List<Entity> cell = _grid.GetCell(c, r);
+                        for (int i = 0; i < cell.Count; i++)
+                        {
+                            DamageEnemy(cell[i]);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (Entity enemy in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+                {
+                    DamageEnemy(enemy);
+                }
             }
         }
 
-        return found;
+        if (_enemyProjectiles != null)
+        {
+            foreach (Entity epEntity in _world.Query().With<PositionComponent>().With<EnemyProjectileComponent>())
+            {
+                ref EnemyProjectileComponent ep = ref _enemyProjectiles.Get(epEntity);
+                if (ep.Lifetime <= 0f) continue;
+
+                ref readonly PositionComponent epPos = ref _positions.Get(epEntity);
+                float clearDist = radius + MathF.Max(2f, ep.Radius);
+                float dx = epPos.X - cx;
+                float dy = epPos.Y - cy;
+                if (dx * dx + dy * dy <= clearDist * clearDist)
+                {
+                    ep.Lifetime = 0f;
+                    _cmd.DestroyEntity(epEntity);
+                }
+            }
+        }
     }
 
-    private void ExecuteRangedAttack(float px, float py, float angle, WeaponItem weapon, float damage, bool isCrit, Entity playerEntity)
+    private void ExecuteBoomerangSpecial(Entity owner, WeaponSlot slot, float px, float py, float fallbackAngle, WeaponItem weapon)
     {
-        int count = Math.Max(1, weapon.Definition.ProjectileCount);
-        float spreadDeg = weapon.Definition.SpreadDegrees;
-        float speed = weapon.Definition.ProjectileSpeed;
-        float radius = weapon.Definition.ProjectileRadius * (isCrit ? 1.3f : 1f);
-        float knockback = weapon.Definition.Knockback;
-        var color = isCrit ? Color.White : weapon.Definition.Color;
-        int hitsLeft = Math.Max(1, weapon.Definition.PiercingHits);
-        float lifesteal = weapon.Definition.Lifesteal + (isCrit ? weapon.Definition.LifestealOnCrit : 0f);
-
-        for (int p = 0; p < count; p++)
+        float centerAngle = fallbackAngle;
+        if (TryFindClosestEnemy(px, py, 380f, out _, out float tx, out float ty))
         {
-            float projAngle = angle;
-            if (count > 1)
-            {
-                float startOffset = -spreadDeg * 0.5f;
-                float step = spreadDeg / (count - 1);
-                projAngle = angle + (startOffset + step * p) * (MathF.PI / 180f);
-            }
+            centerAngle = MathF.Atan2(ty - py, tx - px);
+        }
 
+        slot.AttackAngle = centerAngle;
+        slot.AttackRange = 380f;
+        slot.VisualDuration = 0.28f;
+        slot.VisualTimer = 0.28f;
+        slot.SpecialVisualDuration = 0.28f;
+        slot.SpecialVisualTimer = 0.28f;
+
+        float[] angleOffsets = { -25f, 0f, 25f };
+        const float outboundRange = 380f;
+        const float speed = 520f;
+        float damage = weapon.Damage * 2.5f;
+        const float radius = 18f;
+        const float lifetime = 6.0f;
+        const float knockback = 320f;
+        const float kbTime = 0.22f;
+        var color = new Color(255, 225, 90, 255);
+
+        for (int i = 0; i < angleOffsets.Length; i++)
+        {
+            float projAngle = centerAngle + angleOffsets[i] * (MathF.PI / 180f);
             float vx = MathF.Cos(projAngle) * speed;
             float vy = MathF.Sin(projAngle) * speed;
 
@@ -239,27 +600,86 @@ public sealed class WeaponSystem : ISystem
             {
                 world.AddComponent(entity, new PositionComponent(px, py));
                 world.AddComponent(entity, new VelocityComponent(vx, vy));
-                world.AddComponent(entity, new ProjectileComponent(damage, 2.5f, radius, knockback, hitsLeft, isCrit, lifesteal, playerEntity));
+                world.AddComponent(entity, new ProjectileComponent(damage, lifetime, radius, knockback, hitsLeft: 999, kbTime));
+                world.AddComponent(entity, new BoomerangComponent
+                {
+                    Owner = owner,
+                    OutboundDistanceRemaining = outboundRange,
+                    Speed = speed,
+                    RotationAngle = 0f,
+                    IsReturning = false,
+                    MaxReturnDistance = outboundRange + 220f,
+                    ReturnTargetX = px,
+                    ReturnTargetY = py,
+                    PassedReturnTarget = false
+                });
+                world.AddComponent(entity, new ProjectileVisualComponent(ProjectileShape.Boomerang, projAngle, length: 26f, thickness: 8f, spinAngle: 0f, spinSpeed: 22f));
                 world.AddComponent(entity, new RenderColorComponent(color.R, color.G, color.B, color.A, radius));
             });
         }
     }
 
-    private void ExecuteMeleeAttack(float px, float py, float centerAngle, WeaponItem weapon, float damage, bool isCrit, Entity playerEntity, float effectiveRange)
+    private void ExecuteTwinShotsSpecial(WeaponSlot slot, float px, float py, float facingAngle, WeaponItem weapon)
+    {
+        slot.AttackAngle = facingAngle;
+        slot.AttackRange = 40f;
+        slot.VisualDuration = 0.28f;
+        slot.VisualTimer = 0.28f;
+        slot.SpecialVisualDuration = 0.28f;
+        slot.SpecialVisualTimer = 0.28f;
+
+        const int shotsPerSide = 6;
+        const float fanDeg = 40f; // -20 to +20 around each flank
+        const float speed = 660f;
+        const float radius = 8f;
+        const float lifetime = 0.90f;
+        float damage = weapon.Damage * 2.4f;
+        const float knockback = 360f;
+        const float kbTime = 0.22f;
+        var color = new Color(255, 195, 75, 255);
+
+        float forwardX = MathF.Cos(facingAngle);
+        float forwardY = MathF.Sin(facingAngle);
+        float leftBase = facingAngle - MathF.PI * 0.5f;
+        float rightBase = facingAngle + MathF.PI * 0.5f;
+
+        SpawnFlankVolley(leftBase);
+        SpawnFlankVolley(rightBase);
+
+        void SpawnFlankVolley(float baseFlankAngle)
+        {
+            for (int i = 0; i < shotsPerSide; i++)
+            {
+                float t = i / (float)(shotsPerSide - 1) - 0.5f; // -0.5 to +0.5
+                float shotAngle = baseFlankAngle + t * fanDeg * (MathF.PI / 180f);
+                float longOffset = t * 50f; // -25px to +25px along player facing axis
+                float sx = px + forwardX * longOffset;
+                float sy = py + forwardY * longOffset;
+                float vx = MathF.Cos(shotAngle) * speed;
+                float vy = MathF.Sin(shotAngle) * speed;
+
+                _cmd.CreateEntity((world, entity) =>
+                {
+                    world.AddComponent(entity, new PositionComponent(sx, sy));
+                    world.AddComponent(entity, new VelocityComponent(vx, vy));
+                    world.AddComponent(entity, new ProjectileComponent(damage, lifetime, radius, knockback, hitsLeft: 99, kbTime));
+                    world.AddComponent(entity, new ProjectileVisualComponent(ProjectileShape.BroadsideBolt, shotAngle, length: 26f, thickness: 9f));
+                    world.AddComponent(entity, new RenderColorComponent(color.R, color.G, color.B, color.A, radius));
+                });
+            }
+        }
+    }
+
+    private void ExecuteConeStrike(float px, float py, float centerAngle, float effectiveRange, float arcDegrees, float damage, float knockback, float kbTime)
     {
         if (_world == null || _positions == null || _enemies == null) return;
 
         float rangeSq = effectiveRange * effectiveRange;
-        float halfArc = (weapon.Definition.MeleeArcDegrees * 0.5f) * (MathF.PI / 180f);
-        bool hasChain = weapon.Definition.ChainTargets > 0;
-        float meleeLifesteal = weapon.Definition.Lifesteal + (isCrit ? weapon.Definition.LifestealOnCrit : 0f);
-
-        Entity hitTarget = default;
-        Vector2 hitPos = Vector2.Zero;
-        bool hasHitTarget = false;
+        float halfArc = (arcDegrees * 0.5f) * (MathF.PI / 180f);
 
         void ProcessEnemy(Entity e)
         {
+            if (!_world.IsAlive(e) || !_enemies.Has(e)) return;
             if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) return;
 
             ref readonly PositionComponent pos = ref _positions.Get(e);
@@ -269,43 +689,36 @@ public sealed class WeaponSystem : ISystem
 
             if (distSq <= rangeSq)
             {
-                float angleToEnemy = MathF.Atan2(dy, dx);
-                float angleDiff = MathF.Abs(NormalizeAngle(angleToEnemy - centerAngle));
+                bool insideCone;
+                float kbDirX;
+                float kbDirY;
 
-                if (angleDiff <= halfArc)
+                if (distSq < 0.0001f)
+                {
+                    insideCone = true;
+                    kbDirX = MathF.Cos(centerAngle);
+                    kbDirY = MathF.Sin(centerAngle);
+                }
+                else
+                {
+                    float angleToEnemy = MathF.Atan2(dy, dx);
+                    float angleDiff = MathF.Abs(NormalizeAngle(angleToEnemy - centerAngle));
+                    insideCone = angleDiff <= halfArc;
+                    float invDist = 1f / MathF.Sqrt(distSq);
+                    kbDirX = dx * invDist;
+                    kbDirY = dy * invDist;
+                }
+
+                if (insideCone)
                 {
                     if (_healths != null && _healths.Has(e))
                     {
-                        ref HealthComponent hp = ref _healths.Get(e);
-                        hp.Current -= damage;
-
-                        if (hp.IsDead)
-                        {
-                            _cmd.DestroyEntity(e);
-                        }
+                        EnemyDeathHelper.ApplyDamage(_world, _cmd, _healths, _positions, e, damage);
                     }
 
-                    if (_velocities != null && _velocities.Has(e))
+                    if (knockback > 0f && _knockbacks != null)
                     {
-                        ref VelocityComponent vel = ref _velocities.Get(e);
-                        vel.X += MathF.Cos(angleToEnemy) * weapon.Definition.Knockback;
-                        vel.Y += MathF.Sin(angleToEnemy) * weapon.Definition.Knockback;
-                    }
-
-                    if (meleeLifesteal > 0f && playerEntity != default && _healths != null && _healths.Has(playerEntity))
-                    {
-                        ref HealthComponent playerHp = ref _healths.Get(playerEntity);
-                        if (!playerHp.IsDead)
-                        {
-                            playerHp.Current = MathF.Min(playerHp.Max, playerHp.Current + meleeLifesteal);
-                        }
-                    }
-
-                    if (!hasHitTarget)
-                    {
-                        hitTarget = e;
-                        hitPos = new Vector2(pos.X, pos.Y);
-                        hasHitTarget = true;
+                        CombatKnockback.Apply(_world, _knockbacks, e, kbDirX, kbDirY, knockback, kbTime);
                     }
                 }
             }
@@ -313,7 +726,7 @@ public sealed class WeaponSystem : ISystem
 
         if (_grid != null)
         {
-            CellRange range = _grid.GetRange(px, py, effectiveRange);
+            CellRange range = _grid.GetRange(px, py, effectiveRange + 16f);
             for (int r = range.MinRow; r <= range.MaxRow; r++)
             {
                 for (int c = range.MinCol; c <= range.MaxCol; c++)
@@ -333,78 +746,279 @@ public sealed class WeaponSystem : ISystem
                 ProcessEnemy(e);
             }
         }
+    }
 
-        if (hasChain && hasHitTarget)
+    private void ExecutePiercingLine(float px, float py, float angle, WeaponItem weapon, float damage, int count)
+    {
+        var def = weapon.Definition;
+        float speed = def.ProjectileSpeed;
+        float radius = def.ProjectileRadius;
+        float lifetime = def.ProjectileLifetime;
+        float knockback = def.Knockback;
+        float kbTime = def.KnockbackTime > 0f ? def.KnockbackTime : 0.12f;
+        int hitsLeft = Math.Max(1, def.PiercingHits);
+        var color = def.Color;
+        const float spreadDeg = 10f;
+
+        for (int p = 0; p < count; p++)
         {
-            ExecuteChainLightning(hitTarget, hitPos, damage * weapon.Definition.ChainDamageRatio, weapon.Definition.ChainRange, weapon.Definition.ChainTargets);
+            float projAngle = angle;
+            if (count > 1)
+            {
+                float startOffset = -spreadDeg * 0.5f;
+                float step = spreadDeg / (count - 1);
+                projAngle = angle + (startOffset + step * p) * (MathF.PI / 180f);
+            }
+
+            float vx = MathF.Cos(projAngle) * speed;
+            float vy = MathF.Sin(projAngle) * speed;
+
+            _cmd.CreateEntity((world, entity) =>
+            {
+                world.AddComponent(entity, new PositionComponent(px, py));
+                world.AddComponent(entity, new VelocityComponent(vx, vy));
+                world.AddComponent(entity, new ProjectileComponent(damage, lifetime, radius, knockback, hitsLeft, kbTime));
+                world.AddComponent(entity, new ProjectileVisualComponent(ProjectileShape.PiercingLine, projAngle, length: 34f, thickness: 6f));
+                world.AddComponent(entity, new RenderColorComponent(color.R, color.G, color.B, color.A, radius));
+            });
         }
     }
 
-    private void ExecuteChainLightning(Entity sourceEntity, Vector2 origin, float chainDamage, float chainRange, int maxTargets)
+    private void SpawnHazardZone(Entity owner, float px, float py, WeaponItem weapon, float radius, float damage)
     {
-        if (_world == null || _positions == null || _enemies == null) return;
+        var def = weapon.Definition;
+        float duration = def.HazardDuration;
+        float tickInterval = def.HazardTickInterval;
 
-        int chainedCount = 0;
-        float chainRangeSq = chainRange * chainRange;
-
-        void ProcessChainCandidate(Entity other)
+        _cmd.CreateEntity((world, entity) =>
         {
-            if (chainedCount >= maxTargets) return;
-            if (other == sourceEntity) return;
-            if (_healths != null && _healths.Has(other) && _healths.Get(other).IsDead) return;
-
-            ref readonly PositionComponent otherPos = ref _positions.Get(other);
-            float cdx = otherPos.X - origin.X;
-            float cdy = otherPos.Y - origin.Y;
-            float cdistSq = cdx * cdx + cdy * cdy;
-
-            if (cdistSq <= chainRangeSq)
+            world.AddComponent(entity, new PositionComponent(px, py));
+            world.AddComponent(entity, new HazardZoneComponent
             {
-                if (_healths != null && _healths.Has(other))
-                {
-                    ref HealthComponent otherHp = ref _healths.Get(other);
-                    otherHp.Current -= chainDamage;
-                    if (otherHp.IsDead)
-                    {
-                        _cmd.DestroyEntity(other);
-                    }
-                }
+                Owner = owner,
+                Radius = radius,
+                RemainingDuration = duration,
+                MaxDuration = duration,
+                Damage = damage,
+                TickInterval = tickInterval,
+                TickTimer = 0f
+            });
+        });
+    }
 
-                ActiveArcs.Add(new LightningArc
-                {
-                    From = origin,
-                    To = new Vector2(otherPos.X, otherPos.Y),
-                    Timer = 0.16f,
-                    MaxTimer = 0.16f
-                });
+    private void ExecuteReturningBoomerang(Entity owner, float px, float py, float angle, WeaponItem weapon, float damage, float outboundRange, int count)
+    {
+        var def = weapon.Definition;
+        float speed = def.ProjectileSpeed;
+        float radius = def.ProjectileRadius;
+        float lifetime = def.ProjectileLifetime;
+        float knockback = def.Knockback;
+        float kbTime = def.KnockbackTime > 0f ? def.KnockbackTime : 0.12f;
+        int hitsLeft = Math.Max(1, def.PiercingHits);
+        var color = def.Color;
+        const float spreadDeg = 18f;
 
-                chainedCount++;
+        for (int p = 0; p < count; p++)
+        {
+            float projAngle = angle;
+            if (count > 1)
+            {
+                float startOffset = -spreadDeg * 0.5f;
+                float step = spreadDeg / (count - 1);
+                projAngle = angle + (startOffset + step * p) * (MathF.PI / 180f);
             }
+
+            float vx = MathF.Cos(projAngle) * speed;
+            float vy = MathF.Sin(projAngle) * speed;
+
+            _cmd.CreateEntity((world, entity) =>
+            {
+                world.AddComponent(entity, new PositionComponent(px, py));
+                world.AddComponent(entity, new VelocityComponent(vx, vy));
+                world.AddComponent(entity, new ProjectileComponent(damage, lifetime, radius, knockback, hitsLeft, kbTime));
+                world.AddComponent(entity, new BoomerangComponent
+                {
+                    Owner = owner,
+                    OutboundDistanceRemaining = outboundRange,
+                    Speed = speed,
+                    RotationAngle = 0f,
+                    IsReturning = false,
+                    MaxReturnDistance = outboundRange + 180f,
+                    ReturnTargetX = px,
+                    ReturnTargetY = py,
+                    PassedReturnTarget = false
+                });
+                world.AddComponent(entity, new ProjectileVisualComponent(ProjectileShape.Boomerang, projAngle, length: 15f, thickness: 5f, spinAngle: 0f, spinSpeed: 14f));
+                world.AddComponent(entity, new RenderColorComponent(color.R, color.G, color.B, color.A, radius));
+            });
         }
+    }
+
+    private void ExecuteSidewaysBroadside(float px, float py, float facingAngle, WeaponItem weapon, float damage)
+    {
+        var def = weapon.Definition;
+        float speed = def.ProjectileSpeed;
+        float radius = def.ProjectileRadius;
+        float lifetime = def.ProjectileLifetime;
+        float knockback = def.Knockback;
+        float kbTime = def.KnockbackTime > 0f ? def.KnockbackTime : 0.15f;
+        int hitsLeft = Math.Max(1, def.PiercingHits);
+        var color = def.Color;
+
+        float leftAngle = facingAngle - MathF.PI * 0.5f;
+        float rightAngle = facingAngle + MathF.PI * 0.5f;
+
+        SpawnBroadsideShot(leftAngle);
+        SpawnBroadsideShot(rightAngle);
+
+        void SpawnBroadsideShot(float shotAngle)
+        {
+            float vx = MathF.Cos(shotAngle) * speed;
+            float vy = MathF.Sin(shotAngle) * speed;
+
+            _cmd.CreateEntity((world, entity) =>
+            {
+                world.AddComponent(entity, new PositionComponent(px, py));
+                world.AddComponent(entity, new VelocityComponent(vx, vy));
+                world.AddComponent(entity, new ProjectileComponent(damage, lifetime, radius, knockback, hitsLeft, kbTime));
+                world.AddComponent(entity, new ProjectileVisualComponent(ProjectileShape.BroadsideBolt, shotAngle, length: 16f, thickness: 6f));
+                world.AddComponent(entity, new RenderColorComponent(color.R, color.G, color.B, color.A, radius));
+            });
+        }
+    }
+
+    private bool TryFindClosestEnemy(float px, float py, float maxRange, out Entity closest, out float targetX, out float targetY)
+    {
+        closest = default;
+        targetX = 0f;
+        targetY = 0f;
+
+        if (_world == null || _positions == null || _enemies == null) return false;
+
+        float maxRangeSq = maxRange * maxRange;
+        float bestDistSq = maxRangeSq;
+        bool found = false;
 
         if (_grid != null)
         {
-            CellRange range = _grid.GetRange(origin.X, origin.Y, chainRange);
-            for (int r = range.MinRow; r <= range.MaxRow && chainedCount < maxTargets; r++)
+            CellRange range = _grid.GetRange(px, py, maxRange);
+            for (int r = range.MinRow; r <= range.MaxRow; r++)
             {
-                for (int c = range.MinCol; c <= range.MaxCol && chainedCount < maxTargets; c++)
+                for (int c = range.MinCol; c <= range.MaxCol; c++)
                 {
                     List<Entity> cell = _grid.GetCell(c, r);
-                    for (int i = 0; i < cell.Count && chainedCount < maxTargets; i++)
+                    for (int i = 0; i < cell.Count; i++)
                     {
-                        ProcessChainCandidate(cell[i]);
+                        Entity e = cell[i];
+                        if (!_world.IsAlive(e) || !_enemies.Has(e)) continue;
+                        if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
+
+                        ref readonly PositionComponent pos = ref _positions.Get(e);
+                        float dx = pos.X - px;
+                        float dy = pos.Y - py;
+                        float distSq = dx * dx + dy * dy;
+
+                        if (distSq <= bestDistSq)
+                        {
+                            bestDistSq = distSq;
+                            closest = e;
+                            targetX = pos.X;
+                            targetY = pos.Y;
+                            found = true;
+                        }
                     }
                 }
             }
+            return found;
         }
-        else
+
+        foreach (Entity e in _world.Query().With<PositionComponent>().With<EnemyComponent>())
         {
-            foreach (Entity other in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+            if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
+
+            ref readonly PositionComponent pos = ref _positions.Get(e);
+            float dx = pos.X - px;
+            float dy = pos.Y - py;
+            float distSq = dx * dx + dy * dy;
+
+            if (distSq <= bestDistSq)
             {
-                ProcessChainCandidate(other);
-                if (chainedCount >= maxTargets) break;
+                bestDistSq = distSq;
+                closest = e;
+                targetX = pos.X;
+                targetY = pos.Y;
+                found = true;
             }
         }
+
+        return found;
+    }
+
+    private bool TryFindFurthestEnemy(float px, float py, float maxRange, out Entity furthest, out float targetX, out float targetY)
+    {
+        furthest = default;
+        targetX = 0f;
+        targetY = 0f;
+
+        if (_world == null || _positions == null || _enemies == null) return false;
+
+        float maxRangeSq = maxRange * maxRange;
+        float bestDistSq = -1f;
+        bool found = false;
+
+        if (_grid != null)
+        {
+            CellRange range = _grid.GetRange(px, py, maxRange);
+            for (int r = range.MinRow; r <= range.MaxRow; r++)
+            {
+                for (int c = range.MinCol; c <= range.MaxCol; c++)
+                {
+                    List<Entity> cell = _grid.GetCell(c, r);
+                    for (int i = 0; i < cell.Count; i++)
+                    {
+                        Entity e = cell[i];
+                        if (!_world.IsAlive(e) || !_enemies.Has(e)) continue;
+                        if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
+
+                        ref readonly PositionComponent pos = ref _positions.Get(e);
+                        float dx = pos.X - px;
+                        float dy = pos.Y - py;
+                        float distSq = dx * dx + dy * dy;
+
+                        if (distSq <= maxRangeSq && distSq > bestDistSq)
+                        {
+                            bestDistSq = distSq;
+                            furthest = e;
+                            targetX = pos.X;
+                            targetY = pos.Y;
+                            found = true;
+                        }
+                    }
+                }
+            }
+            return found;
+        }
+
+        foreach (Entity e in _world.Query().With<PositionComponent>().With<EnemyComponent>())
+        {
+            if (_healths != null && _healths.Has(e) && _healths.Get(e).IsDead) continue;
+
+            ref readonly PositionComponent pos = ref _positions.Get(e);
+            float dx = pos.X - px;
+            float dy = pos.Y - py;
+            float distSq = dx * dx + dy * dy;
+
+            if (distSq <= maxRangeSq && distSq > bestDistSq)
+            {
+                bestDistSq = distSq;
+                furthest = e;
+                targetX = pos.X;
+                targetY = pos.Y;
+                found = true;
+            }
+        }
+
+        return found;
     }
 
     private static float NormalizeAngle(float angle)

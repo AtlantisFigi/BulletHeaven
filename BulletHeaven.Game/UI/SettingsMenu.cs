@@ -11,7 +11,7 @@ public sealed class SettingsMenu
     private bool _isDraggingSlider = false;
     private int _activeSliderId = -1;
 
-    public void Draw(GameSettings settings, VirtualViewport viewport, Vector2 virtualMouse, Action onClose)
+    public void Draw(GameSettings settings, VirtualViewport viewport, Vector2 virtualMouse, Action onClose, bool allowEscapeClose = true)
     {
         bool mouseClicked = Raylib.IsMouseButtonPressed(MouseButton.Left);
         bool mouseHeld = Raylib.IsMouseButtonDown(MouseButton.Left);
@@ -120,7 +120,7 @@ public sealed class SettingsMenu
         int bbw = Raylib.MeasureText(backText, 14);
         Raylib.DrawText(backText, (int)backBtn.X + ((int)backBtn.Width - bbw) / 2, (int)backBtn.Y + 18, 14, Color.White);
 
-        if ((backHover && mouseClicked) || Raylib.IsKeyPressed(KeyboardKey.Escape))
+        if ((backHover && mouseClicked) || (allowEscapeClose && Raylib.IsKeyPressed(KeyboardKey.Escape)))
         {
             settings.Save();
             onClose();

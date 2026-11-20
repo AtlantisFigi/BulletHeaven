@@ -7,14 +7,21 @@ public struct SpitterComponent
     public float NormalSpeed;
     public float BulletSpeed;
     public float PreferredDistance;
+    public int ProjectileCount;
 
-    public SpitterComponent(float normalSpeed = 65f, float bulletSpeed = 210f, float actionInterval = 1.8f, float preferredDistance = 290f)
+    public SpitterComponent(
+        float normalSpeed = 70f,
+        float bulletSpeed = 220f,
+        float actionInterval = 2.2f,
+        float preferredDistance = 320f,
+        int projectileCount = 0)
     {
         ActionInterval = actionInterval;
         ActionTimer = actionInterval;
         NormalSpeed = normalSpeed;
         BulletSpeed = bulletSpeed;
         PreferredDistance = preferredDistance;
+        ProjectileCount = projectileCount;
     }
 }
 
